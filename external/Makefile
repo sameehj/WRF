@@ -11,6 +11,7 @@ superclean :
 	@( cd io_grib_share ; make -s superclean )
 	@( cd io_grib2 ; make -s superclean )
 	@( cd io_esmf ;  make -s superclean )
+	@( cd io_adios2 ;  make -s superclean )
 	@( cd ioapi_share ;  make -s superclean )
 	@( cd RSL_LITE ; make -s superclean )
 	@( cd fftpack/fftpack5 ; make -s superclean )
