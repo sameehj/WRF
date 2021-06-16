@@ -191,6 +191,7 @@
 
     IF ( ( dryrun .AND. ( use_package(io_form) .EQ. IO_NETCDF .OR. &
                           use_package(io_form) .EQ. IO_PIO    .OR. &
+                          use_package(io_form) .EQ. IO_ADIOS2 .OR. &
                           use_package(io_form) .EQ. IO_PNETCDF ) ) .OR. &
                         ( use_package(io_form) .EQ. IO_PHDF5  )   ) THEN
 

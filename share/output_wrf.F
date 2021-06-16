@@ -654,6 +654,7 @@ endif
     IF ( ( use_package( io_form ) == IO_NETCDF ) .OR. &
          ( use_package( io_form ) == IO_PHDF5  ) .OR. &
          ( use_package( io_form ) == IO_PIO    ) .OR. &
+         ( use_package( io_form ) == IO_ADIOS2 ) .OR. &
          ( use_package( io_form ) == IO_PNETCDF ) ) THEN
       CALL wrf_put_dom_ti_integer ( fid, 'SURFACE_INPUT_SOURCE', surface_input_source , 1 , ierr )
       CALL wrf_put_dom_ti_integer ( fid, 'SST_UPDATE', sst_update , 1 , ierr )
