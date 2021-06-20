@@ -22,10 +22,10 @@ module wrf_data_adios2
   character (DateStrLen) , parameter      :: ZeroDate = '0000-00-00-00:00:00'
 
 #include "wrf_io_flags.h"
-
   character (256)                         :: msg
   logical                                 :: WrfIOnotInitialized = .true.
-
+  type(adios2_adios)                      :: adios
+  
   type :: wrf_data_handle
     character (255)                       :: FileName
     integer                               :: FileStatus
@@ -58,6 +58,9 @@ module wrf_data_adios2
 ! or when open-for-write or open-for-read are committed.  It is set 
 ! to .FALSE. when the first field is read or written.  
     logical                               :: first_operation
+    type(adios2_io)                       :: adios_io
+    type(adios2_engine)                   :: adios_engine
+    type(adios2_variable)                 :: adios_times_var
   end type wrf_data_handle
   type(wrf_data_handle),target            :: WrfDataHandles(WrfDataHandleMax)
 end module wrf_data_adios2
@@ -174,7 +177,6 @@ subroutine allocHandle(DataHandle,DH,Comm,Status)
   DH%Comm      = Comm
   DH%Write     =.false.
   DH%first_operation  = .TRUE.
-  DH%Collective = .TRUE.
   Status = WRF_NO_ERR
 end subroutine allocHandle
 
@@ -323,6 +325,7 @@ subroutine GetName(Element,Var,Name,Status)
   return
 end subroutine GetName
 
+! ML return timeindex for a given datstr, if it doesn't exist, add it.. begin next adios step?
 subroutine GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
   use wrf_data_adios2
   include 'wrf_status_codes.h'
@@ -337,6 +340,7 @@ subroutine GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
   integer(KIND=MPI_OFFSET_KIND)         :: VCount(2)
   integer                               :: stat
   integer                               :: i
+  type(adios2_variable)                 :: time_var, 
 
   DH => WrfDataHandles(DataHandle)
   call DateCheck(DateStr,Status)
@@ -368,13 +372,16 @@ subroutine GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
     VStart(2) = TimeIndex
     VCount(1) = DateStrLen
     VCount(2) = 1
-    stat = NFMPI_PUT_VARA_TEXT_ALL(DH%NCID,DH%TimesVarID,VStart,VCount,DateStr)
+  
+    call adios2_put(DH%adios2_engine, DH%, temperatures_i1, ierr)
+    !stat = NFMPI_PUT_VARA_TEXT_ALL(DH%NCID,DH%TimesVarID,VStart,VCount,DateStr)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
+    !begin new adios time ste?
   else
     do i=1,MaxTimes
       if(DH%Times(i)==DateStr) then
@@ -419,6 +426,7 @@ subroutine GetDim(MemoryOrder,NDim,Status)
   return
 end subroutine GetDim
 
+!ML provides i,j,k indices. provides default "1" for undfined dims for the variable
 subroutine GetIndices(NDim,Start,End,i1,i2,j1,j2,k1,k2)
   integer              ,intent(in)  :: NDim
   integer ,dimension(*),intent(in)  :: Start,End
@@ -1195,11 +1203,9 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   integer                           :: gridid
   integer local_communicator_x, ntasks_x
 
-  ! adios2 handlers
-  type(adios2_adios)                :: adios
-  type(adios2_io)                   :: io
+  ! adios2 variables
   type(adios2_variable)             :: var
-  type(adios2_engine)               :: engine
+  type(adios2_attribute)            :: attribute
 
   if(WrfIOnotInitialized) then
     Status = WRF_IO_NOT_INITIALIZED 
@@ -1216,20 +1222,20 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   DH%TimeIndex = 0
   DH%Times     = ZeroDate
 
-  !init ADIOS2
+  !ADIOS2 declare i/o
   if(DH%first_operation) then
-    call adios2_init(adios, Comm, adios2_debug_mode_on, Status)
-    call adios2_declare_io(io, adios, "WRF_WRITER", Status)
+     !TODO check for history vs restart
+    call adios2_declare_io(DH%adios_io, adios, "WRF_WRITER1", Status)
     DH%first_operation = .false.
- end if
+  end if
 
-! Remove the dash/underscore change to filenames for adios2...
+  ! Remove the dash/underscore change to filenames for adios2...
   write(newFileName, fmt="(a)") TRIM(ADJUSTL(FileName))
   do i = 1, len_trim(newFileName)
-!     if(newFileName(i:i) == '-') newFileName(i:i) = '_'
-     if(newFileName(i:i) == ':') newFileName(i:i) = '_'
+     !     if(newFileName(i:i) == '-') newFileName(i:i) = '_'
+    if(newFileName(i:i) == ':') newFileName(i:i) = '_'
   enddo
-  call adios2_open(engine, io, newFileName, adios2_mode_write, Status)
+  ! moved the open call to write commit  to before the first put?
   !stat = NFMPI_CREATE(Comm, newFileName, IOR(NF_CLOBBER, NF_64BIT_OFFSET), info, DH%NCID)
 
   call adios2_err(stat,Status)
@@ -1241,13 +1247,28 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
 
   DH%FileStatus  = WRF_FILE_OPENED_NOT_COMMITTED
   DH%FileName    = FileName
-  stat = NFMPI_DEF_DIM(DH%NCID,DH%DimUnlimName,i2offset(NF_UNLIMITED),DH%DimUnlimID)
-  call adios2_err(stat,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , TRIM(msg))
-    return
-  endif
+  !note: NOT defining the Time dimension as in ADIOS it is implicit 
+  !call adios2_define_attribute(attribute, DH%adios_io, DH%DimUnlimName , &
+  !    NF_UNLIMITED, stat)
+  !stat = NFMPI_DEF_DIM(DH%NCID,DH%DimUnlimName,i2offset(NF_UNLIMITED),DH%DimUnlimID)
+  !call adios2_err(stat,Status)
+  !if(Status /= WRF_NO_ERR) then
+  !  write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
+  !  call wrf_debug ( WARN , TRIM(msg))
+  !  return
+  ! endif
+  
+  !from pnetcdf/e3sm
+  !nerrs += this->put_att (fid, E3SM_IO_GLOBAL_ATTR, "_DIM_" + name, MPI_LONG_LONG, 1, &asize);
+  !adios2_define_attribute_array (fp->iop, name.c_str (), mpi_type_to_adios2_type (type), buf, (size_t)size);
+
+  !scorpio def_dim
+  !adios2_variable *variableH = adios2_inquire_variable(file->ioH, dimname);
+  !if (variableH == NULL){
+  !variableH = adios2_define_variable(file->ioH, dimname, adios2_type_uint64_t,
+  !  0 , NULL, NULL, NULL, adios2_constant_dims_false);
+  !}
+
   DH%VarNames  (1:MaxVars) = NO_NAME
   DH%MDVarNames(1:MaxVars) = NO_NAME
   do i=1,MaxDims
@@ -1256,16 +1277,21 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
     DH%DimLengths(i) = NO_DIM
   enddo
   DH%DimNames(1) = 'DateStrLen'
-  stat = NFMPI_DEF_DIM(DH%NCID,DH%DimNames(1),i2offset(DateStrLen),DH%DimIDs(1))
+
+  call adios2_define_attribute(attribute, DH%adios_io, '_DIM_DateStrLen', &
+      DateStrLen, stat)
+  !stat = NFMPI_DEF_DIM(DH%NCID,DH%DimNames(1),i2offset(DateStrLen),DH%DimIDs(1))
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-  VDimIDs(1) = DH%DimIDs(1)
-  VDimIDs(2) = DH%DimUnlimID
-  stat = NFMPI_DEF_VAR(DH%NCID,DH%TimesName,NF_CHAR,2,VDimIDs,DH%TimesVarID)
+  VDimIDs(1) = DH%DimIDs(1) !datestrlen
+  VDimIDs(2) = DH%DimUnlimID !time
+  !define "Times" variable
+  call adios2_define_variable(DH%adios_times_var, DH%adios_io, DH%TimesName, adios2_type_character, stat)
+  !stat = NFMPI_DEF_VAR(DH%NCID,DH%TimesName,NF_CHAR,2,VDimIDs,DH%TimesVarID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
@@ -1320,11 +1346,12 @@ SUBROUTINE ext_adios2_open_for_write_commit(DataHandle, Status)
     call wrf_debug ( WARN , TRIM(msg)) 
     return
   endif
-  !TODO endef does not appear to be needed for adios
-  stat = NFMPI_ENDDEF(DH%NCID)
+  !TODO endef not needed for adios. make open for write
+  call adios2_open(DH%adios_engine, DH%adios_io, DH%FileName, adios2_mode_write, Status)
+  !stat = NFMPI_ENDDEF(DH%NCID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'adios2 error (',stat,') from NFMPI_ENDDEF in ext_adios2_open_for_write_commit ',__FILE__,', line', __LINE__
+    write(msg,*) 'adios2 error (',stat,') from adios2_open in ext_adios2_open_for_write_commit ',__FILE__,', line', __LINE__
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
@@ -1370,9 +1397,7 @@ subroutine ext_adios2_ioclose(DataHandle, Status)
     call wrf_debug ( FATAL , TRIM(msg))
     return
   endif
-  !TODO deal with scope of "engine" variable. Figure out if finalize should be called here
-  call adios2_close(engine, ierr)
-  call adios2_finalize(adios, ierr)
+  call adios2_close(DH%engine, Status)
   !stat = NFMPI_CLOSE(DH%NCID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -1420,7 +1445,7 @@ subroutine ext_adios2_iosync( DataHandle, Status)
     call wrf_debug ( FATAL , TRIM(msg))
     return
   endif
-  ! TODO no sync with MPI
+  ! TODO maybe flush adios buffers?
   !stat = NFMPI_SYNC(DH%NCID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -1432,7 +1457,7 @@ subroutine ext_adios2_iosync( DataHandle, Status)
 end subroutine ext_adios2_iosync
 
 
-
+!puts netcdf file back into define mode
 subroutine ext_adios2_redef( DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
@@ -1470,14 +1495,14 @@ subroutine ext_adios2_redef( DataHandle, Status)
     call wrf_debug ( FATAL , TRIM(msg))
     return
   endif
-  !TODO ADIOS not implemented, but may need to close the file with adios_close
+  !TODO ADIOS not implemented, 
   !stat = NFMPI_REDEF(DH%NCID)
-  call adios2_err(stat,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , TRIM(msg))
-    return
-  endif
+  !call adios2_err(stat,Status)
+  !if(Status /= WRF_NO_ERR) then
+  !  write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !  call wrf_debug ( WARN , TRIM(msg))
+  !  return
+  !endif
   DH%FileStatus  = WRF_FILE_OPENED_NOT_COMMITTED
   return
 end subroutine ext_adios2_redef
@@ -1519,31 +1544,42 @@ subroutine ext_adios2_enddef( DataHandle, Status)
     call wrf_debug ( FATAL , TRIM(msg))
     return
   endif
-  ! TODO ADIOS does not use enddef
+  ! TODO adios does not use enddef
   !stat = NFMPI_ENDDEF(DH%NCID)
-  call adios2_err(stat,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , TRIM(msg))
-    return
-  endif
+  !call adios2_err(stat,Status)
+  !if(Status /= WRF_NO_ERR) then
+  !  write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !  call wrf_debug ( WARN , TRIM(msg))
+  !  return
+  !endif
   DH%FileStatus  = WRF_FILE_OPENED_FOR_WRITE
   return
 end subroutine ext_adios2_enddef
 
+
 subroutine ext_adios2_ioinit(SysDepInfo, Status)
   use wrf_data_adios2
+  use mpi
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
   CHARACTER*(*), INTENT(IN) :: SysDepInfo
-  INTEGER ,INTENT(INOUT)    :: Status
-
+  integer                   :: stat
+  INTEGER ,INTENT(INOUT)    :: Status  
   WrfIOnotInitialized                             = .false.
   WrfDataHandles(1:WrfDataHandleMax)%Free         = .true.
   WrfDataHandles(1:WrfDataHandleMax)%TimesName    = 'Times'
   WrfDataHandles(1:WrfDataHandleMax)%DimUnlimName = 'Time'
   WrfDataHandles(1:WrfDataHandleMax)%FileStatus   = WRF_FILE_NOT_OPENED
   Status = WRF_NO_ERR
+
+  call adios2_init(adios, MPI_COMM_WORLD, adios2_debug_mode_on, Status)
+  call adios2_err(stat,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'adios2 error in ext_adios2_ioinit ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
   return
 end subroutine ext_adios2_ioinit
 
@@ -1574,8 +1610,6 @@ subroutine ext_adios2_inquiry (Inquiry, Result, Status)
 end subroutine ext_adios2_inquiry
 
 
-
-
 subroutine ext_adios2_ioexit(Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
@@ -1596,6 +1630,12 @@ subroutine ext_adios2_ioexit(Status)
   do i=1,WrfDataHandleMax
     CALL deallocHandle( i , stat ) 
   enddo
+  call adios2_finalize(adios, Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'adios2 error in ext_adios2_ioexit ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
   return
 end subroutine ext_adios2_ioexit
 
@@ -2438,7 +2478,7 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
       VDimIDs(j) = DH%DimIDs(i)
       DH%VarDimLens(j,NVar) = Length_global(j)
     enddo
-    VDimIDs(NDim+1) = DH%DimUnlimID
+    VDimIDs(NDim+1) = DH%DimUnlimID ! ML adds time dimension to every new variable (not needed for adios?)
     select case (FieldType)
       case (WRF_REAL)
         XType = adios2_type_float
@@ -2467,7 +2507,7 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
       return
     endif
     DH%VarIDs(NVar) = VarID
-    !TODO variable specific attribute - FieldType
+    ! ML variable specific attribute - FieldType
     stat = NFMPI_PUT_ATT_INT(NCID,VarID,'FieldType',NF_INT,i2offset(1),FieldType)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
@@ -2477,7 +2517,7 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
     endif
     call reorder(MemoryOrder,MemO)
     call uppercase(MemO,UCMemO)
-    !TODO variable specific attribute - MemoryORder
+    ! ML variable specific attribute - MemoryORder
     stat = NFMPI_PUT_ATT_TEXT(NCID,VarID,'MemoryOrder',i2offset(3),UCMemO)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
