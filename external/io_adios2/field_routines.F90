@@ -26,13 +26,14 @@
 !*  are made to this software, the SMS Development team
 !*  (sms-info@fsl.noaa.gov) should be notified.
 !*
-!*----------------------------------------------------------------------------
-!*
-!*  WRF NetCDF I/O
-!   Author:  Jacques Middlecoff jacquesm@fsl.noaa.gov
-!*  Date:    October 6, 2000
-!*
-!*----------------------------------------------------------------------------
+!---------------------------------------------------------------------------
+!
+! WRF ADIOS2 I/O Module
+! Author:  Michael Laufer michael.laufer@toganetworks.com
+! Date:    June 10, 2021
+!
+!---------------------------------------------------------------------------
+
 subroutine ext_pnc_RealFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
   use wrf_data_pnc
   use ext_pnc_support_routines
