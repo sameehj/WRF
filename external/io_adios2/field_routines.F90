@@ -34,150 +34,196 @@
 !
 !---------------------------------------------------------------------------
 
-subroutine ext_pnc_RealFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
-  use wrf_data_pnc
-  use ext_pnc_support_routines
+subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-#  include "pnetcdf.inc"
-  logical                     ,intent(in)    :: Coll
-  character (*)               ,intent(in)    :: IO
-  integer                     ,intent(in)    :: NCID
-  integer                     ,intent(in)    :: VarID
-  integer ,dimension(NVarDims),intent(in)    :: VStart
-  integer ,dimension(NVarDims),intent(in)    :: VCount
-  real, dimension(*)          ,intent(inout) :: Data
-  integer                     ,intent(out)   :: Status
-  integer                                    :: stat
+  character (*)               ,intent(in)          :: IO
+  integer                     ,intent(in)          :: DataHandle
+  integer                     ,intent(in)          :: NCID
+  type(adios2_variable)       ,intent(in)          :: VarID
+  integer(kind=8),dimension(NVarDims),intent(in)   :: VStart
+  integer(kind=8),dimension(NVarDims),intent(in)   :: VCount
+  !real, dimension(*)          ,intent(inout)       :: Data
+  real                        ,intent(inout)       :: Data
+  integer                     ,intent(out)         :: Status
+  integer                                          :: stat
+  type(wrf_data_handle) ,pointer                   :: DH
+ 
 !local
-  integer(KIND=MPI_OFFSET_KIND), dimension(NVarDims)    :: VStart_mpi, VCount_mpi
+  integer(kind=8)           , dimension(NVarDims)  :: VStart_mpi, VCount_mpi
   VStart_mpi = VStart
   VCount_mpi = VCount
+  
+  !start arrays should start at 0?!?!?
+  VStart_mpi = VStart_mpi - 1
 
-  if(IO == 'write') then
-    if(Coll)then
-      stat = NFMPI_PUT_VARA_REAL_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-    else
-      stat = NFMPI_PUT_VARA_REAL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-    end if
-  else
-    if(Coll)then
-      stat = NFMPI_GET_VARA_REAL_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   else
-      stat = NFMPI_GET_VARA_REAL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   end if
-  endif
-  call netcdf_err(stat,Status)
+  call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'NetCDF error in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , msg)
+    write(msg,*) 'Warning Status = ',Status,' in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
   endif
-  return
-end subroutine ext_pnc_RealFieldIO
-
-subroutine ext_pnc_DoubleFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
-  use wrf_data_pnc
-  use ext_pnc_support_routines
-  implicit none
-  include 'wrf_status_codes.h'
-#  include "pnetcdf.inc"
-  logical                     ,intent(in)    :: Coll
-  character (*)               ,intent(in)    :: IO
-  integer                     ,intent(in)    :: NCID
-  integer                     ,intent(in)    :: VarID
-  integer ,dimension(NVarDims),intent(in)    :: VStart
-  integer ,dimension(NVarDims),intent(in)    :: VCount
-  real*8                      ,intent(inout) :: Data
-  integer                     ,intent(out)   :: Status
-  integer                                    :: stat
-!local
-  integer(KIND=MPI_OFFSET_KIND), dimension(NVarDims)    :: VStart_mpi, VCount_mpi
-  VStart_mpi = VStart
-  VCount_mpi = VCount
 
   if(IO == 'write') then
-    if(Coll)then
-      stat = NFMPI_PUT_VARA_DOUBLE_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   else
-      stat = NFMPI_PUT_VARA_DOUBLE(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   endif
-  else
-    if(Coll)then
-      stat = NFMPI_GET_VARA_DOUBLE_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   else
-      stat = NFMPI_GET_VARA_DOUBLE(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   endif
-  endif
-  call netcdf_err(stat,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'NetCDF error in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , msg)
-  endif
-  return
-end subroutine ext_pnc_DoubleFieldIO
-
-subroutine ext_pnc_IntFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
-  use wrf_data_pnc
-  use ext_pnc_support_routines
-  implicit none
-  include 'wrf_status_codes.h'
-#  include "pnetcdf.inc"
-  logical                     ,intent(in)    :: Coll
-  character (*)               ,intent(in)    :: IO
-  integer                     ,intent(in)    :: NCID
-  integer                     ,intent(in)    :: VarID
-  integer ,dimension(NVarDims),intent(in)    :: VStart
-  integer ,dimension(NVarDims),intent(in)    :: VCount
-  integer                     ,intent(inout) :: Data
-  integer                     ,intent(out)   :: Status
-  integer                                    :: stat
-!local
-  integer(KIND=MPI_OFFSET_KIND), dimension(NVarDims)    :: VStart_mpi, VCount_mpi
-  VStart_mpi = VStart
-  VCount_mpi = VCount
-
-  if(IO == 'write') then
-    if(Coll)then
-      stat = NFMPI_PUT_VARA_INT_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-    else
-      stat = NFMPI_PUT_VARA_INT(NCID,VarID,VStart_mpi,VCount_mpi,Data)
+    !adios2_set_selection to set start dims and count dims
+    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
     endif
-  else
-    if(Coll)then
-      stat = NFMPI_GET_VARA_INT_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   else
-      stat = NFMPI_GET_VARA_INT(NCID,VarID,VStart_mpi,VCount_mpi,Data)
-   end if
-  endif
-  call netcdf_err(stat,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'NetCDF error in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , msg)
-  endif
-  return
-end subroutine ext_pnc_IntFieldIO
+    !put var
+    call adios2_put(DH%adios2Engine, VarID, Data, adios2_mode_sync, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+  end if
+end subroutine ext_adios2_RealFieldIO
 
-subroutine ext_pnc_LogicalFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
-  use wrf_data_pnc
-  use ext_pnc_support_routines
+subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-#  include "pnetcdf.inc"
-  logical                                         ,intent(in)    :: Coll
-  character (*)                                   ,intent(in)    :: IO
-  integer                                         ,intent(in)    :: NCID
-  integer                                         ,intent(in)    :: VarID
-  integer,dimension(NVarDims)                     ,intent(in)    :: VStart
-  integer,dimension(NVarDims)                     ,intent(in)    :: VCount
-  logical,dimension(VCount(1),VCount(2),VCount(3)),intent(inout) :: Data
-  integer                                         ,intent(out)   :: Status
-  integer,dimension(:,:,:),allocatable                           :: Buffer
-  integer                                                        :: stat
-  integer                                                        :: i,j,k
+  character (*)               ,intent(in)           :: IO
+  integer                     ,intent(in)           :: DataHandle
+  integer                     ,intent(in)           :: NCID
+  type(adios2_variable)       ,intent(in)           :: VarID
+  integer(kind=8) ,dimension(NVarDims),intent(in)   :: VStart
+  integer(kind=8) ,dimension(NVarDims),intent(in)   :: VCount
+  real*8                      ,intent(inout)        :: Data
+  integer                     ,intent(out)          :: Status
+  integer                                           :: stat
+  type(wrf_data_handle) ,pointer                    :: DH
+ 
 !local
-  integer(KIND=MPI_OFFSET_KIND), dimension(NVarDims)    :: VStart_mpi, VCount_mpi
+  integer(kind=8)           , dimension(NVarDims)   :: VStart_mpi, VCount_mpi
   VStart_mpi = VStart
   VCount_mpi = VCount
+
+  !start arrays should start at 0?!?!?
+  VStart_mpi = VStart_mpi - 1
+
+  call GetDH(DataHandle,DH,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'Warning Status = ',Status,' in ext_adios2_DoubleFieldIO ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
+
+  if(IO == 'write') then
+    !adios2_set_selection to set start dims and count dims
+    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_DoubleFieldIO ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    !put var
+    call adios2_put(DH%adios2Engine, VarID, Data, adios2_mode_sync, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_DoubleFieldIO ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+  end if
+end subroutine ext_adios2_DoubleFieldIO
+
+subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
+  implicit none
+  include 'wrf_status_codes.h'
+  character (*)               ,intent(in)         :: IO
+  integer                     ,intent(in)         :: DataHandle
+  integer                     ,intent(in)         :: NCID
+  type(adios2_variable)       ,intent(in)         :: VarID
+  integer(kind=8) ,dimension(NVarDims),intent(in) :: VStart
+  integer(kind=8) ,dimension(NVarDims),intent(in) :: VCount
+  integer                     ,intent(inout)      :: Data
+  integer                     ,intent(out)        :: Status
+  integer                                         :: stat
+  type(wrf_data_handle) ,pointer                  :: DH
+ 
+!local
+  integer(kind=8)           , dimension(NVarDims) :: VStart_mpi, VCount_mpi
+  VStart_mpi = VStart
+  VCount_mpi = VCount
+
+  !start arrays should start at 0?!?!?
+  VStart_mpi = VStart_mpi - 1
+
+  call GetDH(DataHandle,DH,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'Warning Status = ',Status,' in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
+
+  if(IO == 'write') then
+    !adios2_set_selection to set start dims and count dims
+    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+    endif
+    !put var
+    call adios2_put(DH%adios2Engine, VarID, Data, adios2_mode_sync, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+  end if
+end subroutine ext_adios2_IntFieldIO
+
+subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
+  implicit none
+  include 'wrf_status_codes.h'
+  character (*)                                   ,intent(in)         :: IO
+  integer                                         ,intent(in)         :: DataHandle
+  integer                                         ,intent(in)         :: NCID
+  type(adios2_variable)                           ,intent(in)         :: VarID
+  integer(kind=8) ,dimension(NVarDims)                    ,intent(in) :: VStart
+  integer(kind=8) ,dimension(NVarDims)                    ,intent(in) :: VCount
+  logical,dimension(VCount(1),VCount(2),VCount(3)),intent(inout)      :: Data
+  integer                                         ,intent(out)        :: Status
+  integer                                                             :: stat
+  type(wrf_data_handle) ,pointer                                      :: DH
+  integer,dimension(:,:,:),allocatable                                :: Buffer
+  integer                                                             :: i,j,k
+
+!local
+  integer(kind=8)                               , dimension(NVarDims) :: VStart_mpi, VCount_mpi
+  VStart_mpi = VStart
+  VCount_mpi = VCount
+
+  !start arrays should start at 0?!?!?
+  VStart_mpi = VStart_mpi - 1
+
+  call GetDH(DataHandle,DH,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'Warning Status = ',Status,' in ext_adios2_LogicalFieldIO ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
 
   allocate(Buffer(VCount(1),VCount(2),VCount(3)), STAT=stat)
   if(stat/= 0) then
@@ -198,25 +244,24 @@ subroutine ext_pnc_LogicalFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
         enddo
       enddo
     enddo
-    if(Coll)then
-      stat = NFMPI_PUT_VARA_INT_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Buffer)
-   else
-      stat = NFMPI_PUT_VARA_INT(NCID,VarID,VStart_mpi,VCount_mpi,Buffer)
-   end if
-  else
-    if(Coll)then
-      stat = NFMPI_GET_VARA_INT_ALL(NCID,VarID,VStart_mpi,VCount_mpi,Buffer)
-    else
-      stat = NFMPI_GET_VARA_INT(NCID,VarID,VStart_mpi,VCount_mpi,Buffer)
-    end if
-    Data = Buffer == 1
-  endif
-  call netcdf_err(stat,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'NetCDF error in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , msg)
+    !adios2_set_selection to set start dims and count dims
+    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_LogicalFieldIO ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
     return
-  endif
+    endif
+    !put var
+    call adios2_put(DH%adios2Engine, VarID, Buffer, adios2_mode_sync, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_LogicalFieldIO ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+   end if
+
   deallocate(Buffer, STAT=stat)
   if(stat/= 0) then
     Status = WRF_ERR_FATAL_DEALLOCATION_ERR
@@ -225,4 +270,4 @@ subroutine ext_pnc_LogicalFieldIO(Coll,IO,NCID,VarID,VStart,VCount,Data,Status)
     return
   endif
   return
-end subroutine ext_pnc_LogicalFieldIO
+end subroutine ext_adios2_LogicalFieldIO

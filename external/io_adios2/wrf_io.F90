@@ -35,876 +35,858 @@
 !---------------------------------------------------------------------------
 
 module wrf_data_adios2
-  integer                , parameter      :: FATAL            = 0
-  integer                , parameter      :: WARN             = 0
-  integer                , parameter      :: WrfDataHandleMax = 99
-  integer                , parameter      :: MaxDims          = 2000 ! = NF_MAX_VARS
-  integer                , parameter      :: MaxVars          = 3000
-  integer                , parameter      :: MaxTimes         = 10000
-  integer                , parameter      :: DateStrLen       = 19
-  integer                , parameter      :: VarNameLen       = 31
-  integer                , parameter      :: NO_DIM           = 0
-  integer                , parameter      :: NVarDims         = 4
-  integer                , parameter      :: NMDVarDims       = 2
-  character (8)          , parameter      :: NO_NAME          = 'NULL'
-  character (DateStrLen) , parameter      :: ZeroDate = '0000-00-00-00:00:00'
-
+   use adios2 
+   integer                , parameter      :: FATAL            = 0
+   integer                , parameter      :: WARN             = 0
+   integer                , parameter      :: WrfDataHandleMax = 99
+   integer                , parameter      :: MaxDims          = 2000 ! = NF_MAX_VARS
+   integer                , parameter      :: MaxVars          = 3000
+   integer                , parameter      :: MaxTimes         = 10000
+   integer                , parameter      :: DateStrLen       = 19
+   integer                , parameter      :: VarNameLen       = 31
+   integer                , parameter      :: NO_DIM           = 0
+   integer                , parameter      :: NVarDims         = 3 !down from 4, as time is not used in adios
+   integer                , parameter      :: NMDVarDims       = 2
+   character (8)          , parameter      :: NO_NAME          = 'NULL'
+   character (DateStrLen) , parameter      :: ZeroDate = '0000-00-00-00:00:00'
 #include "wrf_io_flags.h"
-  character (256)                         :: msg
-  logical                                 :: WrfIOnotInitialized = .true.
-  type(adios2_adios)                      :: adios2
-  
-  type :: wrf_data_handle
-    character (255)                       :: FileName
-    integer                               :: FileStatus
-    integer                               :: Comm
-    integer                               :: NCID
-    logical                               :: Free
-    logical                               :: Write
-    character (5)                         :: TimesName
-    integer                               :: TimeIndex
-    integer                               :: CurrentTime  !Only used for read
-    integer                               :: NumberTimes  !Only used for read
-    character (DateStrLen), pointer       :: Times(:)
-    integer                               :: TimesVarID
-    integer               , pointer       :: DimLengths(:)
-    integer               , pointer       :: DimIDs(:)
-    character (31)        , pointer       :: DimNames(:)
-    integer                               :: DimUnlimID
-    character (9)                         :: DimUnlimName
-    integer       , dimension(NVarDims)   :: DimID
-    integer       , dimension(NVarDims)   :: Dimension
-    integer               , pointer       :: MDVarIDs(:)
-    integer               , pointer       :: MDVarDimLens(:)
-    character (80)        , pointer       :: MDVarNames(:)
-    integer               , pointer       :: VarIDs(:)
-    integer               , pointer       :: VarDimLens(:,:)
-    character (VarNameLen), pointer       :: VarNames(:)
-    integer                               :: CurrentVariable  !Only used for read
-    integer                               :: NumVars
-! first_operation is set to .TRUE. when a new handle is allocated 
-! or when open-for-write or open-for-read are committed.  It is set 
-! to .FALSE. when the first field is read or written.  
-    logical                               :: first_operation
-    type(adios2_io)                       :: adios
-    type(adios2_engine)                   :: adios2_engine
-    type(adios2_variable)                 :: adios2_times_var
-    type(adios2_variable)    , pointer    :: adios2_vars(:)
-  end type wrf_data_handle
-  type(wrf_data_handle),target            :: WrfDataHandles(WrfDataHandleMax)
-end module wrf_data_adios2
+   character (256)                         :: msg
+   logical                                 :: WrfIOnotInitialized = .true.
+   type(adios2_adios)                      :: adios
 
+   type :: wrf_data_handle
+     character (255)                       :: FileName
+     integer                               :: FileStatus
+     integer                               :: Comm
+     integer                               :: NCID
+     logical                               :: Free
+     logical                               :: Write
+     character (5)                         :: TimesName
+     integer                               :: TimeIndex
+     integer                               :: CurrentTime  !Only used for read
+     integer                               :: NumberTimes  !Only used for read
+     character (DateStrLen), pointer       :: Times(:)
+     type(adios2_variable)                 :: TimesVarID
+     integer               , pointer       :: DimLengths(:)
+     type(adios2_attribute), pointer       :: DimIDs(:)
+     character (31)        , pointer       :: DimNames(:)
+     type(adios2_attribute)                :: DimUnlimID
+     character (9)                         :: DimUnlimName
+     type(adios2_attribute), dimension(NVarDims) :: DimID
+     integer       , dimension(NVarDims)   :: Dimension 
+     type(adios2_variable), pointer        :: MDVarIDs(:)
+     integer               , pointer       :: MDVarDimLens(:)
+     character (80)        , pointer       :: MDVarNames(:)
+     type(adios2_variable) , pointer       :: VarIDs(:)
+     integer               , pointer       :: VarDimLens(:,:)
+     character (VarNameLen), pointer       :: VarNames(:)
+     integer                               :: CurrentVariable  !Only used for read
+     integer                               :: NumVars
+ ! first_operation is set to .TRUE. when a new handle is allocated 
+ ! or when open-for-write or open-for-read are committed.  It is set 
+ ! to .FALSE. when the first field is read or written.  
+     logical                               :: first_operation
+     type(adios2_io)                       :: adios2IO
+     type(adios2_engine)                   :: adios2Engine
+     !type(adios2_variable)                 :: adios2_times_var
+     !type(adios2_variable)    , pointer    :: adios2_vars(:)
+   end type wrf_data_handle
+   type(wrf_data_handle),target            :: WrfDataHandles(WrfDataHandleMax)
+ end module wrf_data_adios2
+ 
 module ext_adios2_support_routines
-
-  implicit none
-  include 'mpif.h'
-
-CONTAINS
-
-integer(KIND=MPI_OFFSET_KIND) function i2offset(i)
-  integer i
-  i2offset = i
-  return
-end function i2offset
-
-subroutine allocHandle(DataHandle,DH,Comm,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  integer              ,intent(out) :: DataHandle
-  type(wrf_data_handle),pointer     :: DH
-  integer              ,intent(IN)  :: Comm
-  integer              ,intent(out) :: Status
-  integer                           :: i
-  integer                           :: stat
-
-  do i=1,WrfDataHandleMax
-    if(WrfDataHandles(i)%Free) then
-      DH => WrfDataHandles(i)
-      DataHandle = i
-      allocate(DH%Times(MaxTimes), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%DimLengths(MaxDims), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%DimIDs(MaxDims), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%DimNames(MaxDims), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%MDVarIDs(MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%MDVarDimLens(MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%MDVarNames(MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%VarIDs(MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%VarDimLens(NVarDims-1,MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%VarNames(MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      allocate(DH%adios2_vars(MaxVars), STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_ALLOCATION_ERROR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      exit
-    endif
-    if(i==WrfDataHandleMax) then
-      Status = WRF_WARN_TOO_MANY_FILES
-      write(msg,*) 'Warning TOO MANY FILES in ',__FILE__,', line', __LINE__ 
-      call wrf_debug ( WARN , TRIM(msg))
-      write(msg,*) 'Did you call ext_adios2_ioinit?'
-      call wrf_debug ( WARN , TRIM(msg))
-      return
-    endif
-  enddo
-  DH%Free      =.false.
-  DH%Comm      = Comm
-  DH%Write     =.false.
-  DH%first_operation  = .TRUE.
-  Status = WRF_NO_ERR
-end subroutine allocHandle
-
-subroutine deallocHandle(DataHandle, Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  integer              ,intent(in) :: DataHandle
-  integer              ,intent(out) :: Status
-  type(wrf_data_handle),pointer     :: DH
-  integer                           :: i
-  integer                           :: stat
-
-  IF ( DataHandle .GE. 1 .AND. DataHandle .LE. WrfDataHandleMax ) THEN
-    if(.NOT. WrfDataHandles(DataHandle)%Free) then
-      DH => WrfDataHandles(DataHandle)
-      deallocate(DH%Times, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%DimLengths, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%DimIDs, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%DimNames, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%MDVarIDs, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%MDVarDimLens, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%MDVarNames, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%VarIDs, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%VarDimLens, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%VarNames, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      deallocate(DH%adios2_vars, STAT=stat)
-      if(stat/= 0) then
-        Status = WRF_ERR_FATAL_DEALLOCATION_ERR
-        write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
-        call wrf_debug ( FATAL , msg)
-        return
-      endif
-      DH%Free      =.TRUE.
-    endif
-  ENDIF
-  Status = WRF_NO_ERR
-end subroutine deallocHandle
-
-subroutine GetDH(DataHandle,DH,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  integer               ,intent(in)     :: DataHandle
-  type(wrf_data_handle) ,pointer        :: DH
-  integer               ,intent(out)    :: Status
-
-  if(DataHandle < 1 .or. DataHandle > WrfDataHandleMax) then
-    Status = WRF_WARN_BAD_DATA_HANDLE
-    return
-  endif
-  DH => WrfDataHandles(DataHandle)
-  if(DH%Free) then
-    Status = WRF_WARN_BAD_DATA_HANDLE
-    return
-  endif
-  Status = WRF_NO_ERR
-  return
-end subroutine GetDH
-
-subroutine DateCheck(Date,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  character*(*) ,intent(in)      :: Date
-  integer       ,intent(out)     :: Status
-  
-  if(len(Date) /= DateStrLen) then
-    Status = WRF_WARN_DATESTR_BAD_LENGTH
-  else  
-    Status = WRF_NO_ERR
-  endif
-  return
-end subroutine DateCheck
-
-subroutine GetName(Element,Var,Name,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  character*(*) ,intent(in)     :: Element
-  character*(*) ,intent(in)     :: Var
-  character*(*) ,intent(out)    :: Name
-  integer       ,intent(out)    :: Status
-  character (VarNameLen)        :: VarName
-  character (1)                 :: c
-  integer                       :: i
-  integer, parameter            ::  upper_to_lower =IACHAR('a')-IACHAR('A')
-
-  VarName = Var
-  Name = 'MD___'//trim(Element)//VarName
-  do i=1,len(Name)
-    c=Name(i:i)
-    if('A'<=c .and. c <='Z') Name(i:i)=achar(iachar(c)+upper_to_lower)
-    if(c=='-'.or.c==':') Name(i:i)='_'
-  enddo
-  Status = WRF_NO_ERR
-  return
-end subroutine GetName
-
-! ML return timeindex for a given datstr, if it doesn't exist, add it. begin next adios step?
-subroutine GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  use adios2
-  character (*)         ,intent(in)     :: IO
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: DateStr
-  integer               ,intent(out)    :: TimeIndex
-  integer               ,intent(out)    :: Status
-  type(wrf_data_handle) ,pointer        :: DH
-  integer(KIND=MPI_OFFSET_KIND)         :: VStart(2)
-  integer(KIND=MPI_OFFSET_KIND)         :: VCount(2)
-  integer                               :: stat
-  integer                               :: i
-
-  DH => WrfDataHandles(DataHandle)
-  call DateCheck(DateStr,Status)
-  if(Status /= WRF_NO_ERR) then
-    Status =  WRF_WARN_DATESTR_ERROR
-    write(msg,*) 'Warning DATE STRING ERROR in ',__FILE__,', line', __LINE__ 
-    call wrf_debug ( WARN , TRIM(msg))
-    return
-  endif
-  if(IO == 'write') then
-    TimeIndex = DH%TimeIndex
-    if(TimeIndex <= 0) then
-      TimeIndex = 1
-    elseif(DateStr == DH%Times(TimeIndex)) then
-      Status = WRF_NO_ERR
-      return
-    else
-      TimeIndex = TimeIndex +1
-      if(TimeIndex > MaxTimes) then
-        Status = WRF_WARN_TIME_EOF
-        write(msg,*) 'Warning TIME EOF in ',__FILE__,', line', __LINE__ 
-        call wrf_debug ( WARN , TRIM(msg))
-        return
-      endif
-    endif
-    DH%TimeIndex        = TimeIndex
-    DH%Times(TimeIndex) = DateStr
-    VStart(1) = 1
-    VStart(2) = TimeIndex
-    VCount(1) = DateStrLen
-    VCount(2) = 1
-    CALL adios2_put(DH%adios2_engine, DH%adios2_times_var, DateStr, adios2_mode_sync, stat)
-    !stat = NFMPI_PUT_VARA_TEXT_ALL(DH%NCID,DH%TimesVarID,VStart,VCount,DateStr) !write datastr to times array
-    call adios2_err(stat,Status)
-    if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-      call wrf_debug ( WARN , TRIM(msg))
-      return
-    endif
-    !begin new adios time ste?
-  else
-    do i=1,MaxTimes
-      if(DH%Times(i)==DateStr) then
-        Status = WRF_NO_ERR
-        TimeIndex = i
-        exit
-      endif
-      if(i==MaxTimes) then
-        Status = WRF_WARN_TIME_NF
-        write(msg,*) 'Warning TIME ',DateStr,' NOT FOUND in ',__FILE__,', line', __LINE__ 
-        call wrf_debug ( WARN , TRIM(msg))
-        return
-      endif
-    enddo
-  endif
-  return
-end subroutine GetTimeIndex
-
-subroutine GetDim(MemoryOrder,NDim,Status)
-  include 'wrf_status_codes.h'
-  character*(*) ,intent(in)  :: MemoryOrder
-  integer       ,intent(out) :: NDim
-  integer       ,intent(out) :: Status
-  character*3                :: MemOrd
-
-  call LowerCase(MemoryOrder,MemOrd)
-  select case (MemOrd)
-    case ('xyz','xzy','yxz','yzx','zxy','zyx','xsz','xez','ysz','yez')
-      NDim = 3
-    case ('xy','yx','xs','xe','ys','ye')
-      NDim = 2
-    case ('z','c')
-      NDim = 1
-    case ('0')  ! NDim=0 for scalars.  TBH:  20060502
-      NDim = 0
-    case default
-      print *, 'memory order = ',MemOrd,'  ',MemoryOrder
-      Status = WRF_WARN_BAD_MEMORYORDER
-      return
-  end select
-  Status = WRF_NO_ERR
-  return
-end subroutine GetDim
-
-!ML provides i,j,k indices. provides default "1" for undfined dims for the variable
-subroutine GetIndices(NDim,Start,End,i1,i2,j1,j2,k1,k2)
-  integer              ,intent(in)  :: NDim
-  integer ,dimension(*),intent(in)  :: Start,End
-  integer              ,intent(out) :: i1,i2,j1,j2,k1,k2
-
-  i1=1
-  i2=1
-  j1=1
-  j2=1
-  k1=1
-  k2=1
-  if(NDim == 0) return  ! NDim=0 for scalars.  TBH:  20060502
-  i1 = Start(1)
-  i2 = End  (1)
-  if(NDim == 1) return
-  j1 = Start(2)
-  j2 = End  (2)
-  if(NDim == 2) return
-  k1 = Start(3)
-  k2 = End  (3)
-  return
-end subroutine GetIndices
-
-logical function ZeroLengthHorzDim(MemoryOrder,Vector,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  character*(*)              ,intent(in)    :: MemoryOrder
-  integer,dimension(*)       ,intent(in)    :: Vector
-  integer                    ,intent(out)   :: Status
-  integer                                   :: NDim
-  integer,dimension(NVarDims)               :: temp
-  character*3                               :: MemOrd
-  logical zero_length
-
-  call GetDim(MemoryOrder,NDim,Status)
-  temp(1:NDim) = Vector(1:NDim)
-  call LowerCase(MemoryOrder,MemOrd)
-  zero_length = .false.
-  select case (MemOrd)
-    case ('xsz','xez','ysz','yez','xs','xe','ys','ye','z','c')
-      continue
-    case ('0')
-      continue  ! NDim=0 for scalars.  TBH:  20060502
-    case ('xzy','yzx')
-      zero_length = temp(1) .lt. 1 .or. temp(3) .lt. 1
-    case ('xy','yx','xyz','yxz')
-      zero_length = temp(1) .lt. 1 .or. temp(2) .lt. 1
-    case ('zxy','zyx')
-      zero_length = temp(2) .lt. 1 .or. temp(3) .lt. 1
-    case default
-      Status = WRF_WARN_BAD_MEMORYORDER
-      ZeroLengthHorzDim = .true.
-      return
-  end select
-  Status = WRF_NO_ERR
-  ZeroLengthHorzDim = zero_length
-  return
-end function ZeroLengthHorzDim
-
-subroutine ExtOrder(MemoryOrder,Vector,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  character*(*)              ,intent(in)    :: MemoryOrder
-  integer,dimension(*)       ,intent(inout) :: Vector
-  integer                    ,intent(out)   :: Status
-  integer                                   :: NDim
-  integer,dimension(NVarDims)               :: temp
-  character*3                               :: MemOrd
-
-  call GetDim(MemoryOrder,NDim,Status)
-  temp(1:NDim) = Vector(1:NDim)
-  call LowerCase(MemoryOrder,MemOrd)
-  select case (MemOrd)
-
-    case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c')
-      continue
-    case ('0')
-      continue  ! NDim=0 for scalars.  TBH:  20060502
-    case ('xzy')
-      Vector(2) = temp(3)
-      Vector(3) = temp(2)
-    case ('yxz')
-      Vector(1) = temp(2)
-      Vector(2) = temp(1)
-    case ('yzx')
-      Vector(1) = temp(3)
-      Vector(2) = temp(1)
-      Vector(3) = temp(2)
-    case ('zxy')
-      Vector(1) = temp(2)
-      Vector(2) = temp(3)
-      Vector(3) = temp(1)
-    case ('zyx')
-      Vector(1) = temp(3)
-      Vector(3) = temp(1)
-    case ('yx')
-      Vector(1) = temp(2)
-      Vector(2) = temp(1)
-    case default
-      Status = WRF_WARN_BAD_MEMORYORDER
-      return
-  end select
-  Status = WRF_NO_ERR
-  return
-end subroutine ExtOrder
-
-subroutine ExtOrderStr(MemoryOrder,Vector,ROVector,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  character*(*)                    ,intent(in)    :: MemoryOrder
-  character*(*),dimension(*)       ,intent(in)    :: Vector
-  character(80),dimension(NVarDims),intent(out)   :: ROVector
-  integer                          ,intent(out)   :: Status
-  integer                                         :: NDim
-  character*3                                     :: MemOrd
-
-  call GetDim(MemoryOrder,NDim,Status)
-  ROVector(1:NDim) = Vector(1:NDim)
-  call LowerCase(MemoryOrder,MemOrd)
-  select case (MemOrd)
-
-    case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c')
-      continue
-    case ('0')
-      continue  ! NDim=0 for scalars.  TBH:  20060502
-    case ('xzy')
-      ROVector(2) = Vector(3)
-      ROVector(3) = Vector(2)
-    case ('yxz')
-      ROVector(1) = Vector(2)
-      ROVector(2) = Vector(1)
-    case ('yzx')
-      ROVector(1) = Vector(3)
-      ROVector(2) = Vector(1)
-      ROVector(3) = Vector(2)
-    case ('zxy')
-      ROVector(1) = Vector(2)
-      ROVector(2) = Vector(3)
-      ROVector(3) = Vector(1)
-    case ('zyx')
-      ROVector(1) = Vector(3)
-      ROVector(3) = Vector(1)
-    case ('yx')
-      ROVector(1) = Vector(2)
-      ROVector(2) = Vector(1)
-    case default
-      Status = WRF_WARN_BAD_MEMORYORDER
-      return
-  end select
-  Status = WRF_NO_ERR
-  return
-end subroutine ExtOrderStr
-
-
-subroutine LowerCase(MemoryOrder,MemOrd)
-  character*(*) ,intent(in)  :: MemoryOrder
-  character*(*) ,intent(out) :: MemOrd
-  character*1                :: c
-  integer       ,parameter   :: upper_to_lower =IACHAR('a')-IACHAR('A')
-  integer                    :: i,N
-
-  MemOrd = ' '
-  N = len(MemoryOrder)
-  MemOrd(1:N) = MemoryOrder(1:N)
-  do i=1,N
-    c = MemoryOrder(i:i)
-    if('A'<=c .and. c <='Z') MemOrd(i:i)=achar(iachar(c)+upper_to_lower)
-  enddo
-  return
-end subroutine LowerCase
-
-subroutine UpperCase(MemoryOrder,MemOrd)
-  character*(*) ,intent(in)  :: MemoryOrder
-  character*(*) ,intent(out) :: MemOrd
-  character*1                :: c
-  integer     ,parameter     :: lower_to_upper =IACHAR('A')-IACHAR('a')
-  integer                    :: i,N
-
-  MemOrd = ' '
-  N = len(MemoryOrder)
-  MemOrd(1:N) = MemoryOrder(1:N)
-  do i=1,N
-    c = MemoryOrder(i:i)
-    if('a'<=c .and. c <='z') MemOrd(i:i)=achar(iachar(c)+lower_to_upper)
-  enddo
-  return
-end subroutine UpperCase
-
-subroutine adios2_err(err,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  use adios2
-  integer  ,intent(in)  :: err
-  integer  ,intent(out) :: Status
-  character(len=80)     :: errmsg
-  integer               :: stat
-
-  if( err == adios2_error_none )then
-    Status = WRF_NO_ERR
-  else
-    !errmsg = NFMPI_STRERROR(err) 
-    write(msg,*) 'adios2 error code: ',err
-    call wrf_debug ( WARN , TRIM(msg))
-    Status = WRF_WARN_adios2
-  endif
-  return
-end subroutine adios2_err
-
-subroutine FieldIO(IO,DataHandle,DateStr,Starts,Length,MemoryOrder &
-                     ,FieldType,NCID,VarID,XField,Status)
-  use wrf_data_adios2
-  include 'wrf_status_codes.h'
-  use adios2
-  character (*)              ,intent(in)    :: IO
-  integer                    ,intent(in)    :: DataHandle
-  character*(*)              ,intent(in)    :: DateStr
-  integer,dimension(NVarDims),intent(in)    :: Starts
-  integer,dimension(NVarDims),intent(in)    :: Length
-  character*(*)              ,intent(in)    :: MemoryOrder
-  integer                    ,intent(in)    :: FieldType
-  integer                    ,intent(in)    :: NCID
-  integer                    ,intent(in)    :: VarID
-  integer,dimension(*)       ,intent(inout) :: XField
-  integer                    ,intent(out)   :: Status
-  integer                                   :: TimeIndex
-  integer                                   :: NDim
-  integer,dimension(NVarDims)               :: VStart
-  integer,dimension(NVarDims)               :: VCount
-
-  call GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
-  if(Status /= WRF_NO_ERR) then
-    write(msg,*) 'Warning in ',__FILE__,', line', __LINE__
-    call wrf_debug ( WARN , TRIM(msg))
-    write(msg,*) '  Bad time index for DateStr = ',DateStr
-    call wrf_debug ( WARN , TRIM(msg))
-    return
-  endif
-  call GetDim(MemoryOrder,NDim,Status)
-VStart(:) = 1
-VCount(:) = 1
-!jm for parallel netcef  VStart(1:NDim) = 1
-  VStart(1:NDim) = Starts(1:NDim)
-  VCount(1:NDim) = Length(1:NDim)
-  VStart(NDim+1) = TimeIndex
-  VCount(NDim+1) = 1
-  select case (FieldType)
-    case (WRF_REAL)
-      call ext_adios2_RealFieldIO    (WrfDataHandles(DataHandle)%Collective, &
-                                   IO,NCID,VarID,VStart,VCount,XField,Status)
-    case (WRF_DOUBLE)
-      call ext_adios2_DoubleFieldIO  (WrfDataHandles(DataHandle)%Collective, &
-                                   IO,NCID,VarID,VStart,VCount,XField,Status)
-    case (WRF_INTEGER)
-      call ext_adios2_IntFieldIO     (WrfDataHandles(DataHandle)%Collective, &
-                                   IO,NCID,VarID,VStart,VCount,XField,Status)
-    case (WRF_LOGICAL)
-      call ext_adios2_LogicalFieldIO (WrfDataHandles(DataHandle)%Collective, &
-                                   IO,NCID,VarID,VStart,VCount,XField,Status)
-      if(Status /= WRF_NO_ERR) return
-    case default
-!for wrf_complex, double_complex
-      Status = WRF_WARN_DATA_TYPE_NOT_FOUND
-      write(msg,*) 'Warning DATA TYPE NOT FOUND in ',__FILE__,', line', __LINE__
-      call wrf_debug ( WARN , TRIM(msg))
-      return
-  end select
-  return
-end subroutine FieldIO
-
-subroutine Transpose(IO,MemoryOrder,di, Field,l1,l2,m1,m2,n1,n2 &
-                                      ,XField,x1,x2,y1,y2,z1,z2 &
-                                             ,i1,i2,j1,j2,k1,k2 )
-  character*(*)     ,intent(in)    :: IO
-  character*(*)     ,intent(in)    :: MemoryOrder
-  integer           ,intent(in)    :: l1,l2,m1,m2,n1,n2
-  integer           ,intent(in)    :: di
-  integer           ,intent(in)    :: x1,x2,y1,y2,z1,z2
-  integer           ,intent(in)    :: i1,i2,j1,j2,k1,k2
-  integer           ,intent(inout) ::  Field(di,l1:l2,m1:m2,n1:n2)
-!jm 010827  integer           ,intent(inout) :: XField(di,x1:x2,y1:y2,z1:z2)
-  integer           ,intent(inout) :: XField(di,(i2-i1+1)*(j2-j1+1)*(k2-k1+1))
-  character*3                      :: MemOrd
-  character*3                      :: MemO
-  integer           ,parameter     :: MaxUpperCase=IACHAR('Z')
-  integer                          :: i,j,k,ix,jx,kx
-
-  call LowerCase(MemoryOrder,MemOrd)
-  select case (MemOrd)
-
-!#define XDEX(A,B,C) A-A ## 1+1+(A ## 2-A ## 1+1)*((B-B ## 1)+(C-C ## 1)*(B ## 2-B ## 1+1))
-! define(`XDEX',($1-``$1''1+1+(``$1''2-``$1''1+1)*(($2-``$2''1)+($3-``$3''1)*(``$2''2-``$2''1+1))))
-
-    case ('xzy')
+   
+   implicit none
+   !include 'mpif.h'
+ 
+ CONTAINS
+ 
+!  integer(KIND=MPI_OFFSET_KIND) function i2offset(i)
+!    integer i
+!    i2offset = i
+!    return
+!  end function i2offset
+ 
+ subroutine allocHandle(DataHandle,DH,Comm,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   integer              ,intent(out) :: DataHandle
+   type(wrf_data_handle),pointer     :: DH
+   integer              ,intent(IN)  :: Comm
+   integer              ,intent(out) :: Status
+   integer                           :: i
+   integer                           :: stat
+ 
+   do i=1,WrfDataHandleMax
+     if(WrfDataHandles(i)%Free) then
+       DH => WrfDataHandles(i)
+       DataHandle = i
+       allocate(DH%Times(MaxTimes), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%DimLengths(MaxDims), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%DimIDs(MaxDims), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%DimNames(MaxDims), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%MDVarIDs(MaxVars), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%MDVarDimLens(MaxVars), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%MDVarNames(MaxVars), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%VarIDs(MaxVars), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%VarDimLens(NVarDims,MaxVars), STAT=stat) ! was NVarDims-1, but i think that that -1 is due to time
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       allocate(DH%VarNames(MaxVars), STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_ALLOCATION_ERROR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       exit
+     endif
+     if(i==WrfDataHandleMax) then
+       Status = WRF_WARN_TOO_MANY_FILES
+       write(msg,*) 'Warning TOO MANY FILES in ',__FILE__,', line', __LINE__ 
+       call wrf_debug ( WARN , TRIM(msg))
+       write(msg,*) 'Did you call ext_adios2_ioinit?'
+       call wrf_debug ( WARN , TRIM(msg))
+       return
+     endif
+   enddo
+   DH%Free      =.false.
+   DH%Comm      = Comm
+   DH%Write     =.false.
+   DH%first_operation  = .TRUE.
+   Status = WRF_NO_ERR
+ end subroutine allocHandle
+ 
+ subroutine deallocHandle(DataHandle, Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   integer              ,intent(in) :: DataHandle
+   integer              ,intent(out) :: Status
+   type(wrf_data_handle),pointer     :: DH
+   integer                           :: i
+   integer                           :: stat
+ 
+   IF ( DataHandle .GE. 1 .AND. DataHandle .LE. WrfDataHandleMax ) THEN
+     if(.NOT. WrfDataHandles(DataHandle)%Free) then
+       DH => WrfDataHandles(DataHandle)
+       deallocate(DH%Times, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%DimLengths, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%DimIDs, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%DimNames, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%MDVarIDs, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%MDVarDimLens, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%MDVarNames, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%VarIDs, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%VarDimLens, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       deallocate(DH%VarNames, STAT=stat)
+       if(stat/= 0) then
+         Status = WRF_ERR_FATAL_DEALLOCATION_ERR
+         write(msg,*) 'Fatal DEALLOCATION ERROR in ',__FILE__,', line', __LINE__
+         call wrf_debug ( FATAL , msg)
+         return
+       endif
+       DH%Free      =.TRUE.
+     endif
+   ENDIF
+   Status = WRF_NO_ERR
+ end subroutine deallocHandle
+ 
+ subroutine GetDH(DataHandle,DH,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   integer               ,intent(in)     :: DataHandle
+   type(wrf_data_handle) ,pointer        :: DH
+   integer               ,intent(out)    :: Status
+ 
+   if(DataHandle < 1 .or. DataHandle > WrfDataHandleMax) then
+     Status = WRF_WARN_BAD_DATA_HANDLE
+     return
+   endif
+   DH => WrfDataHandles(DataHandle)
+   if(DH%Free) then
+     Status = WRF_WARN_BAD_DATA_HANDLE
+     return
+   endif
+   Status = WRF_NO_ERR
+   return
+ end subroutine GetDH
+ 
+ subroutine DateCheck(Date,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   character*(*) ,intent(in)      :: Date
+   integer       ,intent(out)     :: Status
+   
+   if(len(Date) /= DateStrLen) then
+     Status = WRF_WARN_DATESTR_BAD_LENGTH
+   else  
+     Status = WRF_NO_ERR
+   endif
+   return
+ end subroutine DateCheck
+ 
+ subroutine GetName(Element,Var,Name,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   character*(*) ,intent(in)     :: Element
+   character*(*) ,intent(in)     :: Var
+   character*(*) ,intent(out)    :: Name
+   integer       ,intent(out)    :: Status
+   character (VarNameLen)        :: VarName
+   character (1)                 :: c
+   integer                       :: i
+   integer, parameter            ::  upper_to_lower =IACHAR('a')-IACHAR('A')
+ 
+   VarName = Var
+   Name = 'MD___'//trim(Element)//VarName
+   do i=1,len(Name)
+     c=Name(i:i)
+     if('A'<=c .and. c <='Z') Name(i:i)=achar(iachar(c)+upper_to_lower)
+     if(c=='-'.or.c==':') Name(i:i)='_'
+   enddo
+   Status = WRF_NO_ERR
+   return
+ end subroutine GetName
+ 
+ ! ML return timeindex for a given datestr, if it doesn't exist, add it. begin next adios step?
+ subroutine GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
+   use wrf_data_adios2
+   use adios2
+   include 'wrf_status_codes.h'
+   character (*)         ,intent(in)     :: IO
+   integer               ,intent(in)     :: DataHandle
+   character*(*)         ,intent(in)     :: DateStr
+   integer               ,intent(out)    :: TimeIndex
+   integer               ,intent(out)    :: Status
+   type(wrf_data_handle) ,pointer        :: DH
+   integer(kind=8)                       :: VStart(2)
+   integer(kind=8)                       :: VCount(2)
+   integer                               :: stat
+   integer                               :: i
+ 
+   DH => WrfDataHandles(DataHandle)
+   call DateCheck(DateStr,Status)
+   if(Status /= WRF_NO_ERR) then
+     Status =  WRF_WARN_DATESTR_ERROR
+     write(msg,*) 'Warning DATE STRING ERROR in ',__FILE__,', line', __LINE__ 
+     call wrf_debug ( WARN , TRIM(msg))
+     return
+   endif
+   if(IO == 'write') then
+     TimeIndex = DH%TimeIndex
+     if(TimeIndex <= 0) then
+       TimeIndex = 1
+     elseif(DateStr == DH%Times(TimeIndex)) then
+       Status = WRF_NO_ERR
+       return
+     else
+       TimeIndex = TimeIndex +1
+       if(TimeIndex > MaxTimes) then
+         Status = WRF_WARN_TIME_EOF
+         write(msg,*) 'Warning TIME EOF in ',__FILE__,', line', __LINE__ 
+         call wrf_debug ( WARN , TRIM(msg))
+         return
+       endif
+     endif
+     DH%TimeIndex        = TimeIndex
+     DH%Times(TimeIndex) = DateStr
+     VStart(1) = 1
+     VStart(2) = TimeIndex
+     VCount(1) = DateStrLen
+     VCount(2) = 1
+     CALL adios2_put(DH%adios2Engine, DH%TimesVarID, DateStr, adios2_mode_sync, stat)
+     !stat = NFMPI_PUT_VARA_TEXT_ALL(DH%NCID,DH%TimesVarID,VStart,VCount,DateStr) !write datastr to times array
+     call adios2_err(stat,Status)
+     if(Status /= WRF_NO_ERR) then
+       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+       call wrf_debug ( WARN , TRIM(msg))
+       return
+     endif
+     !begin new adios time ste?
+   else
+     do i=1,MaxTimes
+       if(DH%Times(i)==DateStr) then
+         Status = WRF_NO_ERR
+         TimeIndex = i
+         exit
+       endif
+       if(i==MaxTimes) then
+         Status = WRF_WARN_TIME_NF
+         write(msg,*) 'Warning TIME ',DateStr,' NOT FOUND in ',__FILE__,', line', __LINE__ 
+         call wrf_debug ( WARN , TRIM(msg))
+         return
+       endif
+     enddo
+   endif
+   return
+ end subroutine GetTimeIndex
+ 
+ subroutine GetDim(MemoryOrder,NDim,Status)
+   include 'wrf_status_codes.h'
+   character*(*) ,intent(in)  :: MemoryOrder
+   integer       ,intent(out) :: NDim
+   integer       ,intent(out) :: Status
+   character*3                :: MemOrd
+ 
+   call LowerCase(MemoryOrder,MemOrd)
+   select case (MemOrd)
+     case ('xyz','xzy','yxz','yzx','zxy','zyx','xsz','xez','ysz','yez')
+       NDim = 3
+     case ('xy','yx','xs','xe','ys','ye')
+       NDim = 2
+     case ('z','c')
+       NDim = 1
+     case ('0')  ! NDim=0 for scalars.  TBH:  20060502
+       NDim = 0
+     case default
+       print *, 'memory order = ',MemOrd,'  ',MemoryOrder
+       Status = WRF_WARN_BAD_MEMORYORDER
+       return
+   end select
+   Status = WRF_NO_ERR
+   return
+ end subroutine GetDim
+ 
+ !ML provides i,j,k indices. provides default "1" for undfined dims for the variable
+ subroutine GetIndices(NDim,Start,End,i1,i2,j1,j2,k1,k2)
+   integer              ,intent(in)  :: NDim
+   integer ,dimension(*),intent(in)  :: Start,End
+   integer              ,intent(out) :: i1,i2,j1,j2,k1,k2
+ 
+   i1=1
+   i2=1
+   j1=1
+   j2=1
+   k1=1
+   k2=1
+   if(NDim == 0) return  ! NDim=0 for scalars.  TBH:  20060502
+   i1 = Start(1)
+   i2 = End  (1)
+   if(NDim == 1) return
+   j1 = Start(2)
+   j2 = End  (2)
+   if(NDim == 2) return
+   k1 = Start(3)
+   k2 = End  (3)
+   return
+ end subroutine GetIndices
+ 
+ logical function ZeroLengthHorzDim(MemoryOrder,Vector,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   character*(*)              ,intent(in)    :: MemoryOrder
+   integer,dimension(*)       ,intent(in)    :: Vector
+   integer                    ,intent(out)   :: Status
+   integer                                   :: NDim
+   integer,dimension(NVarDims)               :: temp
+   character*3                               :: MemOrd
+   logical zero_length
+ 
+   call GetDim(MemoryOrder,NDim,Status)
+   temp(1:NDim) = Vector(1:NDim)
+   call LowerCase(MemoryOrder,MemOrd)
+   zero_length = .false.
+   select case (MemOrd)
+     case ('xsz','xez','ysz','yez','xs','xe','ys','ye','z','c')
+       continue
+     case ('0')
+       continue  ! NDim=0 for scalars.  TBH:  20060502
+     case ('xzy','yzx')
+       zero_length = temp(1) .lt. 1 .or. temp(3) .lt. 1
+     case ('xy','yx','xyz','yxz')
+       zero_length = temp(1) .lt. 1 .or. temp(2) .lt. 1
+     case ('zxy','zyx')
+       zero_length = temp(2) .lt. 1 .or. temp(3) .lt. 1
+     case default
+       Status = WRF_WARN_BAD_MEMORYORDER
+       ZeroLengthHorzDim = .true.
+       return
+   end select
+   Status = WRF_NO_ERR
+   ZeroLengthHorzDim = zero_length
+   return
+ end function ZeroLengthHorzDim
+ 
+ subroutine ExtOrder(MemoryOrder,Vector,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   character*(*)              ,intent(in)    :: MemoryOrder
+   integer,dimension(*)       ,intent(inout) :: Vector
+   integer                    ,intent(out)   :: Status
+   integer                                   :: NDim
+   integer,dimension(NVarDims)               :: temp
+   character*3                               :: MemOrd
+ 
+   call GetDim(MemoryOrder,NDim,Status)
+   temp(1:NDim) = Vector(1:NDim)
+   call LowerCase(MemoryOrder,MemOrd)
+   select case (MemOrd)
+ 
+     case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c')
+       continue
+     case ('0')
+       continue  ! NDim=0 for scalars.  TBH:  20060502
+     case ('xzy')
+       Vector(2) = temp(3)
+       Vector(3) = temp(2)
+     case ('yxz')
+       Vector(1) = temp(2)
+       Vector(2) = temp(1)
+     case ('yzx')
+       Vector(1) = temp(3)
+       Vector(2) = temp(1)
+       Vector(3) = temp(2)
+     case ('zxy')
+       Vector(1) = temp(2)
+       Vector(2) = temp(3)
+       Vector(3) = temp(1)
+     case ('zyx')
+       Vector(1) = temp(3)
+       Vector(3) = temp(1)
+     case ('yx')
+       Vector(1) = temp(2)
+       Vector(2) = temp(1)
+     case default
+       Status = WRF_WARN_BAD_MEMORYORDER
+       return
+   end select
+   Status = WRF_NO_ERR
+   return
+ end subroutine ExtOrder
+ 
+ subroutine ExtOrderStr(MemoryOrder,Vector,ROVector,Status)
+   use wrf_data_adios2
+   include 'wrf_status_codes.h'
+   character*(*)                    ,intent(in)    :: MemoryOrder
+   character*(*),dimension(*)       ,intent(in)    :: Vector
+   character(80),dimension(NVarDims),intent(out)   :: ROVector
+   integer                          ,intent(out)   :: Status
+   integer                                         :: NDim
+   character*3                                     :: MemOrd
+ 
+   call GetDim(MemoryOrder,NDim,Status)
+   ROVector(1:NDim) = Vector(1:NDim)
+   call LowerCase(MemoryOrder,MemOrd)
+   select case (MemOrd)
+ 
+     case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c')
+       continue
+     case ('0')
+       continue  ! NDim=0 for scalars.  TBH:  20060502
+     case ('xzy')
+       ROVector(2) = Vector(3)
+       ROVector(3) = Vector(2)
+     case ('yxz')
+       ROVector(1) = Vector(2)
+       ROVector(2) = Vector(1)
+     case ('yzx')
+       ROVector(1) = Vector(3)
+       ROVector(2) = Vector(1)
+       ROVector(3) = Vector(2)
+     case ('zxy')
+       ROVector(1) = Vector(2)
+       ROVector(2) = Vector(3)
+       ROVector(3) = Vector(1)
+     case ('zyx')
+       ROVector(1) = Vector(3)
+       ROVector(3) = Vector(1)
+     case ('yx')
+       ROVector(1) = Vector(2)
+       ROVector(2) = Vector(1)
+     case default
+       Status = WRF_WARN_BAD_MEMORYORDER
+       return
+   end select
+   Status = WRF_NO_ERR
+   return
+ end subroutine ExtOrderStr
+ 
+ 
+ subroutine LowerCase(MemoryOrder,MemOrd)
+   character*(*) ,intent(in)  :: MemoryOrder
+   character*(*) ,intent(out) :: MemOrd
+   character*1                :: c
+   integer       ,parameter   :: upper_to_lower =IACHAR('a')-IACHAR('A')
+   integer                    :: i,N
+ 
+   MemOrd = ' '
+   N = len(MemoryOrder)
+   MemOrd(1:N) = MemoryOrder(1:N)
+   do i=1,N
+     c = MemoryOrder(i:i)
+     if('A'<=c .and. c <='Z') MemOrd(i:i)=achar(iachar(c)+upper_to_lower)
+   enddo
+   return
+ end subroutine LowerCase
+ 
+ subroutine UpperCase(MemoryOrder,MemOrd)
+   character*(*) ,intent(in)  :: MemoryOrder
+   character*(*) ,intent(out) :: MemOrd
+   character*1                :: c
+   integer     ,parameter     :: lower_to_upper =IACHAR('A')-IACHAR('a')
+   integer                    :: i,N
+ 
+   MemOrd = ' '
+   N = len(MemoryOrder)
+   MemOrd(1:N) = MemoryOrder(1:N)
+   do i=1,N
+     c = MemoryOrder(i:i)
+     if('a'<=c .and. c <='z') MemOrd(i:i)=achar(iachar(c)+lower_to_upper)
+   enddo
+   return
+ end subroutine UpperCase
+ 
+ subroutine adios2_err(err,Status)
+   use wrf_data_adios2
+   use adios2
+   include 'wrf_status_codes.h'
+   integer  ,intent(in)  :: err
+   integer  ,intent(out) :: Status
+   character(len=80)     :: errmsg
+   integer               :: stat
+ 
+   if( err == adios2_error_none )then
+     Status = WRF_NO_ERR
+   else
+     !errmsg = NFMPI_STRERROR(err) 
+     write(msg,*) 'adios2 error code: ',err
+     call wrf_debug ( WARN , TRIM(msg))
+     Status = WRF_WARN_ADIOS2
+   endif
+   return
+ end subroutine adios2_err
+ 
+ subroutine FieldIO(IO,DataHandle,DateStr,Starts,Length,MemoryOrder &
+                      ,FieldType,NCID,VarID,XField,Status)
+   use wrf_data_adios2
+   use adios2
+   include 'wrf_status_codes.h'
+   character (*)              ,intent(in)    :: IO
+   integer                    ,intent(in)    :: DataHandle
+   character*(*)              ,intent(in)    :: DateStr
+   integer,dimension(NVarDims),intent(in)    :: Starts
+   integer,dimension(NVarDims),intent(in)    :: Length
+   character*(*)              ,intent(in)    :: MemoryOrder
+   integer                    ,intent(in)    :: FieldType
+   integer                    ,intent(in)    :: NCID
+   type(adios2_variable)      ,intent(in)    :: VarID
+   integer,dimension(*)       ,intent(inout) :: XField
+   integer                    ,intent(out)   :: Status
+   integer                                   :: TimeIndex
+   integer                                   :: NDim
+   integer(kind=8),dimension(NVarDims)       :: VStart
+   integer(kind=8),dimension(NVarDims)       :: VCount
+ 
+   call GetTimeIndex(IO,DataHandle,DateStr,TimeIndex,Status)
+   if(Status /= WRF_NO_ERR) then
+     write(msg,*) 'Warning in ',__FILE__,', line', __LINE__
+     call wrf_debug ( WARN , TRIM(msg))
+     write(msg,*) '  Bad time index for DateStr = ',DateStr
+     call wrf_debug ( WARN , TRIM(msg))
+     return
+   endif
+   call GetDim(MemoryOrder,NDim,Status)
+ VStart(:) = 1
+ VCount(:) = 1
+ !jm for parallel netcef  VStart(1:NDim) = 1
+   VStart(1:NDim) = Starts(1:NDim)
+   VCount(1:NDim) = Length(1:NDim)
+   !VStart(NDim+1) = TimeIndex !removed by ML until time is taken care of
+   !VCount(NDim+1) = 1
+   select case (FieldType)
+     case (WRF_REAL)
+       call ext_adios2_RealFieldIO    (IO, DataHandle,NCID,VarID,VStart,VCount,XField,Status)
+     case (WRF_DOUBLE)
+       call ext_adios2_DoubleFieldIO  (IO,DataHandle,NCID,VarID,VStart,VCount,XField,Status)
+     case (WRF_INTEGER)
+       call ext_adios2_IntFieldIO     (IO,DataHandle,NCID,VarID,VStart,VCount,XField,Status)
+     case (WRF_LOGICAL)
+       call ext_adios2_LogicalFieldIO (IO,DataHandle,NCID,VarID,VStart,VCount,XField,Status)
+       if(Status /= WRF_NO_ERR) return
+     case default
+ !for wrf_complex, double_complex
+       Status = WRF_WARN_DATA_TYPE_NOT_FOUND
+       write(msg,*) 'Warning DATA TYPE NOT FOUND in ',__FILE__,', line', __LINE__
+       call wrf_debug ( WARN , TRIM(msg))
+       return
+   end select
+   return
+ end subroutine FieldIO
+ 
+ subroutine Transpose(IO,MemoryOrder,di, Field,l1,l2,m1,m2,n1,n2 &
+                                       ,XField,x1,x2,y1,y2,z1,z2 &
+                                              ,i1,i2,j1,j2,k1,k2 )
+   character*(*)     ,intent(in)    :: IO
+   character*(*)     ,intent(in)    :: MemoryOrder
+   integer           ,intent(in)    :: l1,l2,m1,m2,n1,n2
+   integer           ,intent(in)    :: di
+   integer           ,intent(in)    :: x1,x2,y1,y2,z1,z2
+   integer           ,intent(in)    :: i1,i2,j1,j2,k1,k2
+   integer           ,intent(inout) ::  Field(di,l1:l2,m1:m2,n1:n2)
+ !jm 010827  integer           ,intent(inout) :: XField(di,x1:x2,y1:y2,z1:z2)
+   integer           ,intent(inout) :: XField(di,(i2-i1+1)*(j2-j1+1)*(k2-k1+1))
+   character*3                      :: MemOrd
+   character*3                      :: MemO
+   integer           ,parameter     :: MaxUpperCase=IACHAR('Z')
+   integer                          :: i,j,k,ix,jx,kx
+ 
+   call LowerCase(MemoryOrder,MemOrd)
+   select case (MemOrd)
+ 
+ !#define XDEX(A,B,C) A-A ## 1+1+(A ## 2-A ## 1+1)*((B-B ## 1)+(C-C ## 1)*(B ## 2-B ## 1+1))
+ ! define(`XDEX',($1-``$1''1+1+(``$1''2-``$1''1+1)*(($2-``$2''1)+($3-``$3''1)*(``$2''2-``$2''1+1))))
+ 
+     case ('xzy')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(i,k,j))
 #include "transpose.code"
-    case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c','0')
+     case ('xyz','xsz','xez','ysz','yez','xy','xs','xe','ys','ye','z','c','0')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(i,j,k))
 #include "transpose.code"
-    case ('yxz')
+     case ('yxz')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(j,i,k))
 #include "transpose.code"
-    case ('zxy')
+     case ('zxy')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(k,i,j))
 #include "transpose.code"
-    case ('yzx')
+     case ('yzx')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(j,k,i))
 #include "transpose.code"
-    case ('zyx')
+     case ('zyx')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(k,j,i))
 #include "transpose.code"
-    case ('yx')
+     case ('yx')
 #undef  DFIELD
 #define DFIELD XField(1:di,XDEX(j,i,k))
 #include "transpose.code"
-  end select
-  return
-end subroutine Transpose
-
-subroutine reorder (MemoryOrder,MemO)
-  character*(*)     ,intent(in)    :: MemoryOrder
-  character*3       ,intent(out)   :: MemO
-  character*3                      :: MemOrd
-  integer                          :: N,i,i1,i2,i3
-
-  MemO = MemoryOrder
-  N = len_trim(MemoryOrder)
-  if(N == 1) return
-  call lowercase(MemoryOrder,MemOrd)
-! never invert the boundary codes
-  select case ( MemOrd )
-     case ( 'xsz','xez','ysz','yez' )
-       return
-     case default
-       continue
-  end select
-  i1 = 1
-  i3 = 1
-  do i=2,N
-    if(ichar(MemOrd(i:i)) < ichar(MemOrd(i1:i1))) I1 = i
-    if(ichar(MemOrd(i:i)) > ichar(MemOrd(i3:i3))) I3 = i
-  enddo
-  if(N == 2) then
-    i2=i3
-  else
-    i2 = 6-i1-i3
-  endif
-  MemO(1:1) = MemoryOrder(i1:i1)
-  MemO(2:2) = MemoryOrder(i2:i2)
-  if(N == 3) MemO(3:3) = MemoryOrder(i3:i3)
-  if(MemOrd(i1:i1) == 's' .or. MemOrd(i1:i1) == 'e') then
-    MemO(1:N-1) = MemO(2:N)
-    MemO(N:N  ) = MemoryOrder(i1:i1)
-  endif
-  return
-end subroutine reorder
-  
-! Returns .TRUE. iff it is OK to write time-independent domain metadata to the 
-! file referenced by DataHandle.  If DataHandle is invalid, .FALSE. is 
-! returned.  
-LOGICAL FUNCTION adios2_ok_to_put_dom_ti( DataHandle )
-    USE wrf_data_adios2
-    include 'wrf_status_codes.h'
-    INTEGER, INTENT(IN) :: DataHandle 
-    CHARACTER*80 :: fname
-    INTEGER :: filestate
-    INTEGER :: Status
-    LOGICAL :: dryrun, first_output, retval
-    call ext_adios2_inquire_filename( DataHandle, fname, filestate, Status )
-    IF ( Status /= WRF_NO_ERR ) THEN
-      write(msg,*) 'Warning Status = ',Status,' in ',__FILE__, &
-                   ', line', __LINE__
-      call wrf_debug ( WARN , TRIM(msg) )
-      retval = .FALSE.
-    ELSE
-      dryrun       = ( filestate .EQ. WRF_FILE_OPENED_NOT_COMMITTED )
-      first_output = adios2_is_first_operation( DataHandle )
-!      retval = .NOT. dryrun .AND. first_output
-      retval = dryrun
-    ENDIF
-    adios2_ok_to_put_dom_ti = retval
-    RETURN
-END FUNCTION adios2_ok_to_put_dom_ti
-
-! Returns .TRUE. iff it is OK to read time-independent domain metadata from the 
-! file referenced by DataHandle.  If DataHandle is invalid, .FALSE. is 
-! returned.  
-LOGICAL FUNCTION adios2_ok_to_get_dom_ti( DataHandle )
-    USE wrf_data_adios2
-    include 'wrf_status_codes.h'
-    INTEGER, INTENT(IN) :: DataHandle 
-    CHARACTER*80 :: fname
-    INTEGER :: filestate
-    INTEGER :: Status
-    LOGICAL :: dryrun, retval
-    call ext_adios2_inquire_filename( DataHandle, fname, filestate, Status )
-    IF ( Status /= WRF_NO_ERR ) THEN
-      write(msg,*) 'Warning Status = ',Status,' in ',__FILE__, &
-                   ', line', __LINE__
-      call wrf_debug ( WARN , TRIM(msg) )
-      retval = .FALSE.
-    ELSE
-      dryrun       = ( filestate .EQ. WRF_FILE_OPENED_NOT_COMMITTED )
-      retval = .NOT. dryrun
-    ENDIF
-    adios2_ok_to_get_dom_ti = retval
-    RETURN
-END FUNCTION adios2_ok_to_get_dom_ti
-
-! Returns .TRUE. iff nothing has been read from or written to the file 
-! referenced by DataHandle.  If DataHandle is invalid, .FALSE. is returned.  
-LOGICAL FUNCTION adios2_is_first_operation( DataHandle )
-    USE wrf_data_adios2
-    INCLUDE 'wrf_status_codes.h'
-    INTEGER, INTENT(IN) :: DataHandle 
-    TYPE(wrf_data_handle) ,POINTER :: DH
-    INTEGER :: Status
-    LOGICAL :: retval
-    CALL GetDH( DataHandle, DH, Status )
-    IF ( Status /= WRF_NO_ERR ) THEN
-      write(msg,*) 'Warning Status = ',Status,' in ',__FILE__, &
-                   ', line', __LINE__
-      call wrf_debug ( WARN , TRIM(msg) )
-      retval = .FALSE.
-    ELSE
-      retval = DH%first_operation
-    ENDIF
-    adios2_is_first_operation = retval
-    RETURN
-END FUNCTION adios2_is_first_operation
-
-end module ext_adios2_support_routines
+   end select
+   return
+ end subroutine Transpose
+ 
+ subroutine reorder (MemoryOrder,MemO)
+   character*(*)     ,intent(in)    :: MemoryOrder
+   character*3       ,intent(out)   :: MemO
+   character*3                      :: MemOrd
+   integer                          :: N,i,i1,i2,i3
+ 
+   MemO = MemoryOrder
+   N = len_trim(MemoryOrder)
+   if(N == 1) return
+   call lowercase(MemoryOrder,MemOrd)
+ ! never invert the boundary codes
+   select case ( MemOrd )
+      case ( 'xsz','xez','ysz','yez' )
+        return
+      case default
+        continue
+   end select
+   i1 = 1
+   i3 = 1
+   do i=2,N
+     if(ichar(MemOrd(i:i)) < ichar(MemOrd(i1:i1))) I1 = i
+     if(ichar(MemOrd(i:i)) > ichar(MemOrd(i3:i3))) I3 = i
+   enddo
+   if(N == 2) then
+     i2=i3
+   else
+     i2 = 6-i1-i3
+   endif
+   MemO(1:1) = MemoryOrder(i1:i1)
+   MemO(2:2) = MemoryOrder(i2:i2)
+   if(N == 3) MemO(3:3) = MemoryOrder(i3:i3)
+   if(MemOrd(i1:i1) == 's' .or. MemOrd(i1:i1) == 'e') then
+     MemO(1:N-1) = MemO(2:N)
+     MemO(N:N  ) = MemoryOrder(i1:i1)
+   endif
+   return
+ end subroutine reorder
+   
+ ! Returns .TRUE. iff it is OK to write time-independent domain metadata to the 
+ ! file referenced by DataHandle.  If DataHandle is invalid, .FALSE. is 
+ ! returned.  
+ LOGICAL FUNCTION adios2_ok_to_put_dom_ti( DataHandle )
+     USE wrf_data_adios2
+     include 'wrf_status_codes.h'
+     INTEGER, INTENT(IN) :: DataHandle 
+     CHARACTER*80 :: fname
+     INTEGER :: filestate
+     INTEGER :: Status
+     LOGICAL :: dryrun, first_output, retval
+     call ext_adios2_inquire_filename( DataHandle, fname, filestate, Status )
+     IF ( Status /= WRF_NO_ERR ) THEN
+       write(msg,*) 'Warning Status = ',Status,' in ',__FILE__, &
+                    ', line', __LINE__
+       call wrf_debug ( WARN , TRIM(msg) )
+       retval = .FALSE.
+     ELSE
+       dryrun       = ( filestate .EQ. WRF_FILE_OPENED_NOT_COMMITTED )
+       first_output = adios2_is_first_operation( DataHandle )
+ !      retval = .NOT. dryrun .AND. first_output
+       retval = dryrun
+     ENDIF
+     adios2_ok_to_put_dom_ti = retval
+     RETURN
+ END FUNCTION adios2_ok_to_put_dom_ti
+ 
+ ! Returns .TRUE. iff it is OK to read time-independent domain metadata from the 
+ ! file referenced by DataHandle.  If DataHandle is invalid, .FALSE. is 
+ ! returned.  
+ LOGICAL FUNCTION adios2_ok_to_get_dom_ti( DataHandle )
+     USE wrf_data_adios2
+     include 'wrf_status_codes.h'
+     INTEGER, INTENT(IN) :: DataHandle 
+     CHARACTER*80 :: fname
+     INTEGER :: filestate
+     INTEGER :: Status
+     LOGICAL :: dryrun, retval
+     call ext_adios2_inquire_filename( DataHandle, fname, filestate, Status )
+     IF ( Status /= WRF_NO_ERR ) THEN
+       write(msg,*) 'Warning Status = ',Status,' in ',__FILE__, &
+                    ', line', __LINE__
+       call wrf_debug ( WARN , TRIM(msg) )
+       retval = .FALSE.
+     ELSE
+       dryrun       = ( filestate .EQ. WRF_FILE_OPENED_NOT_COMMITTED )
+       retval = .NOT. dryrun
+     ENDIF
+     adios2_ok_to_get_dom_ti = retval
+     RETURN
+ END FUNCTION adios2_ok_to_get_dom_ti
+ 
+ ! Returns .TRUE. iff nothing has been read from or written to the file 
+ ! referenced by DataHandle.  If DataHandle is invalid, .FALSE. is returned.  
+ LOGICAL FUNCTION adios2_is_first_operation( DataHandle )
+     USE wrf_data_adios2
+     INCLUDE 'wrf_status_codes.h'
+     INTEGER, INTENT(IN) :: DataHandle 
+     TYPE(wrf_data_handle) ,POINTER :: DH
+     INTEGER :: Status
+     LOGICAL :: retval
+     CALL GetDH( DataHandle, DH, Status )
+     IF ( Status /= WRF_NO_ERR ) THEN
+       write(msg,*) 'Warning Status = ',Status,' in ',__FILE__, &
+                    ', line', __LINE__
+       call wrf_debug ( WARN , TRIM(msg) )
+       retval = .FALSE.
+     ELSE
+       retval = DH%first_operation
+     ENDIF
+     adios2_is_first_operation = retval
+     RETURN
+ END FUNCTION adios2_is_first_operation
+ 
+ end module ext_adios2_support_routines
 
 ! subroutine ext_adios2_open_for_read(DatasetName, Comm1, Comm2, SysDepInfo, DataHandle, Status)
 !   use wrf_data_adios2
@@ -1226,9 +1208,9 @@ end module ext_adios2_support_routines
 SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHandle,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   character*(*)        ,intent(in)  :: FileName
   integer              ,intent(in)  :: Comm
   integer              ,intent(in)  :: IOComm
@@ -1240,6 +1222,7 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   integer                           :: stat
   character (7)                     :: Buffer
   integer                           :: VDimIDs(2)
+  
   integer                           :: ierr
   character*1024                    :: newFileName
   integer                           :: gridid
@@ -1267,7 +1250,7 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   !ADIOS2 declare i/o
   if(DH%first_operation) then
      !TODO check for history vs restart
-    call adios2_declare_io(DH%adios, adios2, "WRF_WRITER1", stat)
+    call adios2_declare_io(DH%adios2IO, adios, "WRF_WRITER1", stat)
     DH%first_operation = .false.
   end if
 
@@ -1320,7 +1303,7 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   enddo
   DH%DimNames(1) = 'DateStrLen'
 
-  call adios2_define_attribute(attribute, DH%adios_io, '_DIM_DateStrLen', &
+  call adios2_define_attribute(DH%DimIDs(1), DH%adios2IO, '_DIM_DateStrLen', &
       DateStrLen, stat)
   !stat = NFMPI_DEF_DIM(DH%NCID,DH%DimNames(1),i2offset(DateStrLen),DH%DimIDs(1))
   call adios2_err(stat,Status)
@@ -1329,10 +1312,10 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-  VDimIDs(1) = DH%DimIDs(1) !datestrlen
-  VDimIDs(2) = DH%DimUnlimID !time
+  !VDimIDs(1) = DH%DimIDs(1) !datestrlen
+  !VDimIDs(2) = DH%DimUnlimID !time
   !define "Times" variable
-  call adios2_define_variable(DH%adios2_times_var, DH%adios_io, DH%TimesName, adios2_type_character, stat)
+  call adios2_define_variable(DH%TimesVarID, DH%adios2IO, DH%TimesName, adios2_type_character, stat)
   !stat = NFMPI_DEF_VAR(DH%NCID,DH%TimesName,NF_CHAR,2,VDimIDs,DH%TimesVarID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -1351,9 +1334,9 @@ subroutine ext_adios2_open_for_write (DatasetName, Comm1, Comm2, &
                                    SysDepInfo, DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   character *(*), intent(in)  ::DatasetName
   integer       , intent(in)  ::Comm1, Comm2
   character *(*), intent(in)  ::SysDepInfo
@@ -1367,9 +1350,9 @@ end subroutine ext_adios2_open_for_write
 SUBROUTINE ext_adios2_open_for_write_commit(DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer              ,intent(in)  :: DataHandle
   integer              ,intent(out) :: Status
   type(wrf_data_handle),pointer     :: DH
@@ -1389,7 +1372,7 @@ SUBROUTINE ext_adios2_open_for_write_commit(DataHandle, Status)
     return
   endif
   !TODO endef not needed for adios. make open for write
-  call adios2_open(DH%adios2_engine, DH%adios_io, DH%FileName, adios2_mode_write, stat)
+  call adios2_open(DH%adios2Engine, DH%adios2IO, DH%FileName, adios2_mode_write, stat)
   !stat = NFMPI_ENDDEF(DH%NCID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -1405,9 +1388,9 @@ end subroutine ext_adios2_open_for_write_commit
 subroutine ext_adios2_ioclose(DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer              ,intent(in)  :: DataHandle
   integer              ,intent(out) :: Status
   type(wrf_data_handle),pointer     :: DH
@@ -1439,7 +1422,7 @@ subroutine ext_adios2_ioclose(DataHandle, Status)
     call wrf_debug ( FATAL , TRIM(msg))
     return
   endif
-  call adios2_close(DH%engine, stat)
+  call adios2_close(DH%adios2Engine, stat)
   !stat = NFMPI_CLOSE(DH%NCID)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -1455,9 +1438,9 @@ end subroutine ext_adios2_ioclose
 subroutine ext_adios2_iosync( DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer              ,intent(in)  :: DataHandle
   integer              ,intent(out) :: Status
   type(wrf_data_handle),pointer     :: DH
@@ -1552,9 +1535,9 @@ end subroutine ext_adios2_iosync
 subroutine ext_adios2_enddef( DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  !use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer              ,intent(in)  :: DataHandle
   integer              ,intent(out) :: Status
   type(wrf_data_handle),pointer     :: DH
@@ -1601,10 +1584,10 @@ end subroutine ext_adios2_enddef
 
 subroutine ext_adios2_ioinit(SysDepInfo, Status)
   use wrf_data_adios2
-  use mpi
   use adios2
   implicit none
   include 'wrf_status_codes.h'
+  include 'mpif.h'
   CHARACTER*(*), INTENT(IN) :: SysDepInfo
   integer                   :: stat
   INTEGER ,INTENT(INOUT)    :: Status  
@@ -1615,7 +1598,8 @@ subroutine ext_adios2_ioinit(SysDepInfo, Status)
   WrfDataHandles(1:WrfDataHandleMax)%FileStatus   = WRF_FILE_NOT_OPENED
   Status = WRF_NO_ERR
 
-  call adios2_init(adios2, MPI_COMM_WORLD, adios2_debug_mode_on, stat)
+  !ML get MPI comm from WRF, instead of MPI_COMM_WORLD
+  call adios2_init(adios, MPI_COMM_WORLD, adios2_debug_mode_on, stat)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_ioinit ',__FILE__,', line', __LINE__
@@ -1655,9 +1639,9 @@ end subroutine ext_adios2_inquiry
 subroutine ext_adios2_ioexit(Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer       , INTENT(INOUT)     :: Status
   integer                           :: error
   type(wrf_data_handle),pointer     :: DH
@@ -1672,7 +1656,7 @@ subroutine ext_adios2_ioexit(Status)
   do i=1,WrfDataHandleMax
     CALL deallocHandle( i , stat ) 
   enddo
-  call adios2_finalize(adios2, stat)
+  call adios2_finalize(adios, stat)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_ioexit ',__FILE__,', line', __LINE__
@@ -1682,96 +1666,97 @@ subroutine ext_adios2_ioexit(Status)
   return
 end subroutine ext_adios2_ioexit
 
-subroutine ext_adios2_get_dom_ti_real(DataHandle,Element,Data,Count,OutCount,Status)
-#define ROUTINE_TYPE 'REAL'
-#define TYPE_DATA real,intent(out) :: Data(*)
-#define TYPE_COUNT integer,intent(in) :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCOunt
-#define TYPE_BUFFER  real,allocatable :: Buffer(:)
-#define NF_TYPE NF_FLOAT
-#define NF_ROUTINE NFMPI_GET_ATT_REAL 
-#define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
-#include "ext_adios2_get_dom_ti.code"
-end subroutine ext_adios2_get_dom_ti_real
+! subroutine ext_adios2_get_dom_ti_real(DataHandle,Element,Data,Count,OutCount,Status)
+! #define ROUTINE_TYPE 'REAL'
+! #define TYPE_DATA real,intent(out) :: Data(*)
+! #define TYPE_COUNT integer,intent(in) :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCOunt
+! #define TYPE_BUFFER  real,allocatable :: Buffer(:)
+! #define NF_TYPE NF_FLOAT
+! #define NF_ROUTINE NFMPI_GET_ATT_REAL 
+! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
+! #include "ext_adios2_get_dom_ti.code"
+! end subroutine ext_adios2_get_dom_ti_real
 
-subroutine ext_adios2_get_dom_ti_integer(DataHandle,Element,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE 
-#undef TYPE_DATA 
-#undef TYPE_BUFFER
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'INTEGER'
-#define TYPE_DATA integer,intent(out) :: Data(*)
-#define TYPE_BUFFER  integer,allocatable :: Buffer(:)
-#define NF_TYPE NF_INT
-#define NF_ROUTINE NFMPI_GET_ATT_INT
-#define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
-#include "ext_adios2_get_dom_ti.code"
-end subroutine ext_adios2_get_dom_ti_integer
+! subroutine ext_adios2_get_dom_ti_integer(DataHandle,Element,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE 
+! #undef TYPE_DATA 
+! #undef TYPE_BUFFER
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'INTEGER'
+! #define TYPE_DATA integer,intent(out) :: Data(*)
+! #define TYPE_BUFFER  integer,allocatable :: Buffer(:)
+! #define NF_TYPE NF_INT
+! #define NF_ROUTINE NFMPI_GET_ATT_INT
+! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
+! #include "ext_adios2_get_dom_ti.code"
+! end subroutine ext_adios2_get_dom_ti_integer
 
-subroutine ext_adios2_get_dom_ti_double(DataHandle,Element,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE 
-#undef TYPE_DATA 
-#undef TYPE_BUFFER
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA real*8,intent(out) :: Data(*)
-#define TYPE_BUFFER  real*8,allocatable :: Buffer(:)
-#define NF_TYPE NF_DOUBLE
-#define NF_ROUTINE NFMPI_GET_ATT_DOUBLE
-#define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
-#include "ext_adios2_get_dom_ti.code"
-end subroutine ext_adios2_get_dom_ti_double
+! subroutine ext_adios2_get_dom_ti_double(DataHandle,Element,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE 
+! #undef TYPE_DATA 
+! #undef TYPE_BUFFER
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'DOUBLE'
+! #define TYPE_DATA real*8,intent(out) :: Data(*)
+! #define TYPE_BUFFER  real*8,allocatable :: Buffer(:)
+! #define NF_TYPE NF_DOUBLE
+! #define NF_ROUTINE NFMPI_GET_ATT_DOUBLE
+! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
+! #include "ext_adios2_get_dom_ti.code"
+! end subroutine ext_adios2_get_dom_ti_double
 
-subroutine ext_adios2_get_dom_ti_logical(DataHandle,Element,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE 
-#undef TYPE_DATA 
-#undef TYPE_BUFFER
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'LOGICAL'
-#define TYPE_DATA logical,intent(out) :: Data(*)
-#define TYPE_BUFFER  integer,allocatable :: Buffer(:)
-#define NF_TYPE NF_INT
-#define NF_ROUTINE NFMPI_GET_ATT_INT
-#define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))==1
-#include "ext_adios2_get_dom_ti.code"
-end subroutine ext_adios2_get_dom_ti_logical
+! subroutine ext_adios2_get_dom_ti_logical(DataHandle,Element,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE 
+! #undef TYPE_DATA 
+! #undef TYPE_BUFFER
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'LOGICAL'
+! #define TYPE_DATA logical,intent(out) :: Data(*)
+! #define TYPE_BUFFER  integer,allocatable :: Buffer(:)
+! #define NF_TYPE NF_INT
+! #define NF_ROUTINE NFMPI_GET_ATT_INT
+! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))==1
+! #include "ext_adios2_get_dom_ti.code"
+! end subroutine ext_adios2_get_dom_ti_logical
 
-subroutine ext_adios2_get_dom_ti_char(DataHandle,Element,Data,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef TYPE_BUFFER
-#undef NF_TYPE
-#define ROUTINE_TYPE 'CHAR'
-#define TYPE_DATA character*(*),intent(out) :: Data
-#define TYPE_COUNT
-#define TYPE_OUTCOUNT
-#define TYPE_BUFFER
-#define NF_TYPE NF_CHAR
-#define CHAR_TYPE
-#include "ext_adios2_get_dom_ti.code"
-#undef CHAR_TYPE
-end subroutine ext_adios2_get_dom_ti_char
+! subroutine ext_adios2_get_dom_ti_char(DataHandle,Element,Data,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef TYPE_BUFFER
+! #undef NF_TYPE
+! #define ROUTINE_TYPE 'CHAR'
+! #define TYPE_DATA character*(*),intent(out) :: Data
+! #define TYPE_COUNT
+! #define TYPE_OUTCOUNT
+! #define TYPE_BUFFER
+! #define NF_TYPE NF_CHAR
+! #define CHAR_TYPE
+! #include "ext_adios2_get_dom_ti.code"
+! #undef CHAR_TYPE
+! end subroutine ext_adios2_get_dom_ti_char
 
 subroutine ext_adios2_put_dom_ti_real(DataHandle,Element,Data,Count,Status)
 #undef ROUTINE_TYPE 
 #undef TYPE_DATA 
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'REAL'
-#define TYPE_DATA  real   ,intent(in) :: Data(*)
+!#define TYPE_DATA  real   ,intent(in) :: Data(*)
+#define TYPE_DATA  real   ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_REAL
-#define ARGS NF_FLOAT,i2offset(Count),Data
+! #define ARGS NF_FLOAT,i2offset(Count),Data
 #include "ext_adios2_put_dom_ti.code"
 end subroutine ext_adios2_put_dom_ti_real
 
@@ -1780,13 +1765,14 @@ subroutine ext_adios2_put_dom_ti_integer(DataHandle,Element,Data,Count,Status)
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'INTEGER'
-#define TYPE_DATA  integer,intent(in) :: Data(*)
+!#define TYPE_DATA  integer,intent(in) :: Data(*)
+#define TYPE_DATA  integer,intent(in) :: Data(Count)
 #define TYPE_COUNT integer,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_INT
-#define ARGS NF_INT,i2offset(Count),Data
+!#define ARGS NF_INT,i2offset(Count),Data
 #include "ext_adios2_put_dom_ti.code"
 end subroutine ext_adios2_put_dom_ti_integer
 
@@ -1795,13 +1781,14 @@ subroutine ext_adios2_put_dom_ti_double(DataHandle,Element,Data,Count,Status)
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA  real*8 ,intent(in) :: Data(*)
+!#define TYPE_DATA  real*8 ,intent(in) :: Data(*)
+#define TYPE_DATA  real*8 ,intent(in) :: Data(:)
 #define TYPE_COUNT integer,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_DOUBLE
-#define ARGS NF_DOUBLE,i2offset(Count),Data
+!#define ARGS NF_DOUBLE,i2offset(Count),Data
 #include "ext_adios2_put_dom_ti.code"
 end subroutine ext_adios2_put_dom_ti_double
 
@@ -1810,12 +1797,13 @@ subroutine ext_adios2_put_dom_ti_logical(DataHandle,Element,Data,Count,Status)
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #define ROUTINE_TYPE 'LOGICAL'
-#define TYPE_DATA  logical,intent(in) :: Data(*)
+!#define TYPE_DATA  logical,intent(in) :: Data(*)
+#define TYPE_DATA  logical,intent(in) :: Data(Count)
 #define TYPE_COUNT integer,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_INT
-#define ARGS NF_INT,i2offset(Count),Buffer
+!#define ARGS NF_INT,i2offset(Count),Buffer
 #define LOG
 #include "ext_adios2_put_dom_ti.code"
 end subroutine ext_adios2_put_dom_ti_logical
@@ -1825,13 +1813,13 @@ subroutine ext_adios2_put_dom_ti_char(DataHandle,Element,Data,Status)
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'CHAR'
-#define TYPE_DATA  character*(*),intent(in) :: Data
-#define TYPE_COUNT integer,parameter :: Count=1
+#define TYPE_DATA  character*(*), intent(in) :: Data(1)
+#define TYPE_COUNT  integer,parameter :: Count=1
 #define NF_ROUTINE NFMPI_PUT_ATT_TEXT
-#define ARGS i2offset(len_trim(Data)),Data
+!#define ARGS i2offset(len_trim(Data)),Data
 #include "ext_adios2_put_dom_ti.code"
 end subroutine ext_adios2_put_dom_ti_char
 
@@ -1840,13 +1828,14 @@ subroutine ext_adios2_put_var_ti_real(DataHandle,Element,Var,Data,Count,Status)
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'REAL'
-#define TYPE_DATA  real    ,intent(in) :: Data(*)
+!#define TYPE_DATA  real    ,intent(in) :: Data(*)
+#define TYPE_DATA  real    ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_REAL
-#define ARGS NF_FLOAT,i2offset(Count),Data
+!#define ARGS NF_FLOAT,i2offset(Count),Data
 #include "ext_adios2_put_var_ti.code"
 end subroutine ext_adios2_put_var_ti_real
 
@@ -1855,17 +1844,18 @@ subroutine ext_adios2_put_var_td_real(DataHandle,Element,DateStr,Var,Data,Count,
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef NF_TYPE
+#undef ADIOS2TYPE
 #undef LENGTH
-#undef ARG
+!#undef ARG
 #undef LOG
 #define ROUTINE_TYPE 'REAL'
-#define TYPE_DATA  real    ,intent(in) :: Data(*)
+!#define TYPE_DATA  real    ,intent(in) :: Data(*)
+#define TYPE_DATA  real    ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_VARA_REAL_ALL
-#define NF_TYPE NF_FLOAT
+#define ADIOS2TYPE adios2_type_real 
 #define LENGTH Count
-#define ARG 
+!#define ARG 
 #include "ext_adios2_put_var_td.code"
 end subroutine ext_adios2_put_var_td_real
 
@@ -1874,13 +1864,14 @@ subroutine ext_adios2_put_var_ti_double(DataHandle,Element,Var,Data,Count,Status
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA  real*8 ,intent(in) :: Data(*)
+!#define TYPE_DATA  real*8 ,intent(in) :: Data(*)
+#define TYPE_DATA  real*8 ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_DOUBLE
-#define ARGS NF_DOUBLE,i2offset(Count),Data
+!#define ARGS NF_DOUBLE,i2offset(Count),Data
 #include "ext_adios2_put_var_ti.code"
 end subroutine ext_adios2_put_var_ti_double
 
@@ -1889,17 +1880,18 @@ subroutine ext_adios2_put_var_td_double(DataHandle,Element,DateStr,Var,Data,Coun
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef NF_TYPE
+#undef ADIOS2TYPE
 #undef LENGTH
-#undef ARG
+!#undef ARG
 #undef LOG
 #define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA  real*8,intent(in) :: Data(*)
+!#define TYPE_DATA  real*8,intent(in) :: Data(*)
+#define TYPE_DATA  real*8,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_VARA_DOUBLE_ALL
-#define NF_TYPE NF_DOUBLE
+#define ADIOS2TYPE adios2_type_dp 
 #define LENGTH Count
-#define ARG 
+!#define ARG 
 #include "ext_adios2_put_var_td.code"
 end subroutine ext_adios2_put_var_td_double
 
@@ -1908,13 +1900,14 @@ subroutine ext_adios2_put_var_ti_integer(DataHandle,Element,Var,Data,Count,Statu
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'INTEGER'
-#define TYPE_DATA  integer ,intent(in) :: Data(*)
+!#define TYPE_DATA  integer ,intent(in) :: Data(*)
+#define TYPE_DATA  integer ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_INT
-#define ARGS NF_INT,i2offset(Count),Data 
+!#define ARGS NF_INT,i2offset(Count),Data 
 #include "ext_adios2_put_var_ti.code"
 end subroutine ext_adios2_put_var_ti_integer
 
@@ -1923,17 +1916,18 @@ subroutine ext_adios2_put_var_td_integer(DataHandle,Element,DateStr,Var,Data,Cou
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef NF_TYPE
+#undef ADIOS2TYPE
 #undef LENGTH
-#undef ARG
+!#undef ARG
 #undef LOG
 #define ROUTINE_TYPE 'INTEGER'
-#define TYPE_DATA  integer ,intent(in) :: Data(*)
+!#define TYPE_DATA  integer ,intent(in) :: Data(*)
+#define TYPE_DATA  integer ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_VARA_INT_ALL
-#define NF_TYPE NF_INT
+#define ADIOS2TYPE adios2_type_integer4
 #define LENGTH Count
-#define ARG 
+!#define ARG 
 #include "ext_adios2_put_var_td.code"
 end subroutine ext_adios2_put_var_td_integer
 
@@ -1942,13 +1936,14 @@ subroutine ext_adios2_put_var_ti_logical(DataHandle,Element,Var,Data,Count,Statu
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS 
+!#undef ARGS 
 #define ROUTINE_TYPE 'LOGICAL'
-#define TYPE_DATA  logical ,intent(in) :: Data(*)
+!#define TYPE_DATA  logical ,intent(in) :: Data(*)
+#define TYPE_DATA  logical ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_ATT_INT
 #define LOG
-#define ARGS NF_INT,i2offset(Count),Buffer
+!#define ARGS NF_INT,i2offset(Count),Buffer
 #include "ext_adios2_put_var_ti.code"
 end subroutine ext_adios2_put_var_ti_logical
 
@@ -1957,17 +1952,18 @@ subroutine ext_adios2_put_var_td_logical(DataHandle,Element,DateStr,Var,Data,Cou
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef NF_TYPE
+#undef ADIOS2TYPE
 #undef LENGTH
-#undef ARG
+!#undef ARG
 #define ROUTINE_TYPE 'LOGICAL'
-#define TYPE_DATA  logical ,intent(in) :: Data(*)
+!#define TYPE_DATA  logical ,intent(in) :: Data(*)
+#define TYPE_DATA  logical ,intent(in) :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define NF_ROUTINE NFMPI_PUT_VARA_INT_ALL
-#define NF_TYPE NF_INT
+#define ADIOS2TYPE adios2_type_integer4
 #define LOG
 #define LENGTH Count
-#define ARG 
+!#define ARG 
 #include "ext_adios2_put_var_td.code"
 end subroutine ext_adios2_put_var_td_logical
 
@@ -1976,13 +1972,14 @@ subroutine ext_adios2_put_var_ti_char(DataHandle,Element,Var,Data,Status)
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef ARGS
+!#undef ARGS
 #undef LOG
 #define ROUTINE_TYPE 'CHAR'
-#define TYPE_DATA  character*(*) ,intent(in) :: Data
-#define TYPE_COUNT 
+#define TYPE_DATA  character*(*) ,intent(in) :: Data(1)
+!#define TYPE_COUNT  integer,parameter :: Count=1
+#define TYPE_COUNT
 #define NF_ROUTINE NFMPI_PUT_ATT_TEXT
-#define ARGS i2offset(len_trim(Data)),trim(Data)
+!#define ARGS i2offset(len_trim(Data)),trim(Data)
 #define CHAR_TYPE
 #include "ext_adios2_put_var_ti.code"
 #undef CHAR_TYPE
@@ -1993,230 +1990,231 @@ subroutine ext_adios2_put_var_td_char(DataHandle,Element,DateStr,Var,Data,Status
 #undef TYPE_DATA
 #undef TYPE_COUNT
 #undef NF_ROUTINE
-#undef NF_TYPE
+#undef ADIOS2TYPE
 #undef LENGTH
-#undef ARG
+!#undef ARG
 #undef LOG
 #define ROUTINE_TYPE 'CHAR'
 #define TYPE_DATA  character*(*) ,intent(in) :: Data
-#define TYPE_COUNT 
+!#define TYPE_COUNT  integer,parameter :: Count=1
+#define TYPE_COUNT
 #define NF_ROUTINE NFMPI_PUT_VARA_TEXT_ALL
-#define NF_TYPE NF_CHAR
+#define ADIOS2TYPE adios2_type_string
 #define LENGTH len(Data)
 #include "ext_adios2_put_var_td.code"
 end subroutine ext_adios2_put_var_td_char
 
-subroutine ext_adios2_get_var_ti_real(DataHandle,Element,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'REAL'
-#define TYPE_DATA     real   ,intent(out) :: Data(*)
-#define TYPE_BUFFER   real   ,allocatable :: Buffer(:)
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_FLOAT
-#define NF_ROUTINE NFMPI_GET_ATT_REAL
-#define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
-#include "ext_adios2_get_var_ti.code"
-end subroutine ext_adios2_get_var_ti_real
+! subroutine ext_adios2_get_var_ti_real(DataHandle,Element,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'REAL'
+! #define TYPE_DATA     real   ,intent(out) :: Data(*)
+! #define TYPE_BUFFER   real   ,allocatable :: Buffer(:)
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_FLOAT
+! #define NF_ROUTINE NFMPI_GET_ATT_REAL
+! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
+! #include "ext_adios2_get_var_ti.code"
+! end subroutine ext_adios2_get_var_ti_real
 
-subroutine ext_adios2_get_var_td_real(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef LENGTH
-#undef COPY
-#define ROUTINE_TYPE 'REAL'
-#define TYPE_DATA     real   ,intent(out) :: Data(*)
-#define TYPE_BUFFER real
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_FLOAT
-#define NF_ROUTINE NFMPI_GET_VARA_REAL_ALL
-#define LENGTH min(Count,Len1)
-#define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
-#include "ext_adios2_get_var_td.code"
-end subroutine ext_adios2_get_var_td_real
+! subroutine ext_adios2_get_var_td_real(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef LENGTH
+! #undef COPY
+! #define ROUTINE_TYPE 'REAL'
+! #define TYPE_DATA     real   ,intent(out) :: Data(*)
+! #define TYPE_BUFFER real
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_FLOAT
+! #define NF_ROUTINE NFMPI_GET_VARA_REAL_ALL
+! #define LENGTH min(Count,Len1)
+! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
+! #include "ext_adios2_get_var_td.code"
+! end subroutine ext_adios2_get_var_td_real
 
-subroutine ext_adios2_get_var_ti_double(DataHandle,Element,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA     real*8 ,intent(out) :: Data(*)
-#define TYPE_BUFFER   real*8 ,allocatable :: Buffer(:)
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_DOUBLE
-#define NF_ROUTINE NFMPI_GET_ATT_DOUBLE
-#define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
-#include "ext_adios2_get_var_ti.code"
-end subroutine ext_adios2_get_var_ti_double
+! subroutine ext_adios2_get_var_ti_double(DataHandle,Element,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'DOUBLE'
+! #define TYPE_DATA     real*8 ,intent(out) :: Data(*)
+! #define TYPE_BUFFER   real*8 ,allocatable :: Buffer(:)
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_DOUBLE
+! #define NF_ROUTINE NFMPI_GET_ATT_DOUBLE
+! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
+! #include "ext_adios2_get_var_ti.code"
+! end subroutine ext_adios2_get_var_ti_double
 
-subroutine ext_adios2_get_var_td_double(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef LENGTH
-#undef COPY
-#define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA     real*8 ,intent(out) :: Data(*)
-#define TYPE_BUFFER real*8
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_DOUBLE
-#define NF_ROUTINE NFMPI_GET_VARA_DOUBLE_ALL
-#define LENGTH min(Count,Len1)
-#define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
-#include "ext_adios2_get_var_td.code"
-end subroutine ext_adios2_get_var_td_double
+! subroutine ext_adios2_get_var_td_double(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef LENGTH
+! #undef COPY
+! #define ROUTINE_TYPE 'DOUBLE'
+! #define TYPE_DATA     real*8 ,intent(out) :: Data(*)
+! #define TYPE_BUFFER real*8
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_DOUBLE
+! #define NF_ROUTINE NFMPI_GET_VARA_DOUBLE_ALL
+! #define LENGTH min(Count,Len1)
+! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
+! #include "ext_adios2_get_var_td.code"
+! end subroutine ext_adios2_get_var_td_double
 
-subroutine ext_adios2_get_var_ti_integer(DataHandle,Element,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'INTEGER'
-#define TYPE_DATA     integer,intent(out) :: Data(*)
-#define TYPE_BUFFER   integer,allocatable :: Buffer(:)
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_INT
-#define NF_ROUTINE NFMPI_GET_ATT_INT
-#define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
-#include "ext_adios2_get_var_ti.code"
-end subroutine ext_adios2_get_var_ti_integer
+! subroutine ext_adios2_get_var_ti_integer(DataHandle,Element,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'INTEGER'
+! #define TYPE_DATA     integer,intent(out) :: Data(*)
+! #define TYPE_BUFFER   integer,allocatable :: Buffer(:)
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_INT
+! #define NF_ROUTINE NFMPI_GET_ATT_INT
+! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
+! #include "ext_adios2_get_var_ti.code"
+! end subroutine ext_adios2_get_var_ti_integer
 
-subroutine ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef LENGTH
-#undef COPY
-#define ROUTINE_TYPE 'INTEGER'
-#define TYPE_DATA     integer,intent(out) :: Data(*)
-#define TYPE_BUFFER integer
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_INT
-#define NF_ROUTINE NFMPI_GET_VARA_INT_ALL
-#define LENGTH min(Count,Len1)
-#define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
-#include "ext_adios2_get_var_td.code"
-end subroutine ext_adios2_get_var_td_integer
+! subroutine ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef LENGTH
+! #undef COPY
+! #define ROUTINE_TYPE 'INTEGER'
+! #define TYPE_DATA     integer,intent(out) :: Data(*)
+! #define TYPE_BUFFER integer
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_INT
+! #define NF_ROUTINE NFMPI_GET_VARA_INT_ALL
+! #define LENGTH min(Count,Len1)
+! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
+! #include "ext_adios2_get_var_td.code"
+! end subroutine ext_adios2_get_var_td_integer
 
-subroutine ext_adios2_get_var_ti_logical(DataHandle,Element,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'LOGICAL'
-#define TYPE_DATA     logical,intent(out) :: Data(*)
-#define TYPE_BUFFER   integer,allocatable :: Buffer(:)
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_INT
-#define NF_ROUTINE NFMPI_GET_ATT_INT
-#define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))==1
-#include "ext_adios2_get_var_ti.code"
-end subroutine ext_adios2_get_var_ti_logical
+! subroutine ext_adios2_get_var_ti_logical(DataHandle,Element,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'LOGICAL'
+! #define TYPE_DATA     logical,intent(out) :: Data(*)
+! #define TYPE_BUFFER   integer,allocatable :: Buffer(:)
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_INT
+! #define NF_ROUTINE NFMPI_GET_ATT_INT
+! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))==1
+! #include "ext_adios2_get_var_ti.code"
+! end subroutine ext_adios2_get_var_ti_logical
 
-subroutine ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef LENGTH
-#undef COPY
-#define ROUTINE_TYPE 'LOGICAL'
-#define TYPE_DATA     logical,intent(out) :: Data(*)
-#define TYPE_BUFFER   integer
-#define TYPE_COUNT    integer,intent(in)  :: Count
-#define TYPE_OUTCOUNT integer,intent(out) :: OutCount
-#define NF_TYPE NF_INT
-#define NF_ROUTINE NFMPI_GET_VARA_INT_ALL
-#define LENGTH min(Count,Len1)
-#define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))==1
-#include "ext_adios2_get_var_td.code"
-end subroutine ext_adios2_get_var_td_logical
+! subroutine ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef LENGTH
+! #undef COPY
+! #define ROUTINE_TYPE 'LOGICAL'
+! #define TYPE_DATA     logical,intent(out) :: Data(*)
+! #define TYPE_BUFFER   integer
+! #define TYPE_COUNT    integer,intent(in)  :: Count
+! #define TYPE_OUTCOUNT integer,intent(out) :: OutCount
+! #define NF_TYPE NF_INT
+! #define NF_ROUTINE NFMPI_GET_VARA_INT_ALL
+! #define LENGTH min(Count,Len1)
+! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))==1
+! #include "ext_adios2_get_var_td.code"
+! end subroutine ext_adios2_get_var_td_logical
 
-subroutine ext_adios2_get_var_ti_char(DataHandle,Element,Var,Data,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef COPY
-#define ROUTINE_TYPE 'CHAR'
-#define TYPE_DATA   character*(*) ,intent(out) :: Data
-#define TYPE_BUFFER
-#define TYPE_COUNT integer :: Count = 1
-#define TYPE_OUTCOUNT
-#define NF_TYPE NF_CHAR
-#define NF_ROUTINE NFMPI_GET_ATT_TEXT
-#define COPY 
-#define CHAR_TYPE
-#include "ext_adios2_get_var_ti.code"
-#undef CHAR_TYPE
-end subroutine ext_adios2_get_var_ti_char
+! subroutine ext_adios2_get_var_ti_char(DataHandle,Element,Var,Data,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef COPY
+! #define ROUTINE_TYPE 'CHAR'
+! #define TYPE_DATA   character*(*) ,intent(out) :: Data
+! #define TYPE_BUFFER
+! #define TYPE_COUNT integer :: Count = 1
+! #define TYPE_OUTCOUNT
+! #define NF_TYPE NF_CHAR
+! #define NF_ROUTINE NFMPI_GET_ATT_TEXT
+! #define COPY 
+! #define CHAR_TYPE
+! #include "ext_adios2_get_var_ti.code"
+! #undef CHAR_TYPE
+! end subroutine ext_adios2_get_var_ti_char
 
-subroutine ext_adios2_get_var_td_char(DataHandle,Element,DateStr,Var,Data,Status)
-#undef ROUTINE_TYPE
-#undef TYPE_DATA
-#undef TYPE_BUFFER
-#undef TYPE_COUNT
-#undef TYPE_OUTCOUNT
-#undef NF_TYPE
-#undef NF_ROUTINE
-#undef LENGTH
-#define ROUTINE_TYPE 'CHAR'
-#define TYPE_DATA character*(*) ,intent(out)    :: Data
-#define TYPE_BUFFER character (80)
-#define TYPE_COUNT integer :: Count = 1
-#define TYPE_OUTCOUNT
-#define NF_TYPE NF_CHAR
-#define NF_ROUTINE NFMPI_GET_VARA_TEXT_ALL
-#define LENGTH Len1
-#define CHAR_TYPE
-#include "ext_adios2_get_var_td.code"
-#undef CHAR_TYPE
-end subroutine ext_adios2_get_var_td_char
+! subroutine ext_adios2_get_var_td_char(DataHandle,Element,DateStr,Var,Data,Status)
+! #undef ROUTINE_TYPE
+! #undef TYPE_DATA
+! #undef TYPE_BUFFER
+! #undef TYPE_COUNT
+! #undef TYPE_OUTCOUNT
+! #undef NF_TYPE
+! #undef NF_ROUTINE
+! #undef LENGTH
+! #define ROUTINE_TYPE 'CHAR'
+! #define TYPE_DATA character*(*) ,intent(out)    :: Data
+! #define TYPE_BUFFER character (80)
+! #define TYPE_COUNT integer :: Count = 1
+! #define TYPE_OUTCOUNT
+! #define NF_TYPE NF_CHAR
+! #define NF_ROUTINE NFMPI_GET_VARA_TEXT_ALL
+! #define LENGTH Len1
+! #define CHAR_TYPE
+! #include "ext_adios2_get_var_td.code"
+! #undef CHAR_TYPE
+! end subroutine ext_adios2_get_var_td_char
 
 subroutine ext_adios2_put_dom_td_real(DataHandle,Element,DateStr,Data,Count,Status)
   integer               ,intent(in)     :: DataHandle
@@ -2282,68 +2280,68 @@ subroutine ext_adios2_put_dom_td_char(DataHandle,Element,DateStr,Data,Status)
   return
 end subroutine ext_adios2_put_dom_td_char
 
-subroutine ext_adios2_get_dom_td_real(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Element
-  character*(*)         ,intent(in)     :: DateStr
-  real                  ,intent(out)    :: Data(*)
-  integer               ,intent(in)     :: Count
-  integer               ,intent(out)    :: OutCount
-  integer               ,intent(out)    :: Status
-  call ext_adios2_get_var_td_real(DataHandle,Element,DateStr,          &
-       'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_' ,Data,Count,OutCount,Status)
-  return
-end subroutine ext_adios2_get_dom_td_real
+! subroutine ext_adios2_get_dom_td_real(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+!   integer               ,intent(in)     :: DataHandle
+!   character*(*)         ,intent(in)     :: Element
+!   character*(*)         ,intent(in)     :: DateStr
+!   real                  ,intent(out)    :: Data(*)
+!   integer               ,intent(in)     :: Count
+!   integer               ,intent(out)    :: OutCount
+!   integer               ,intent(out)    :: Status
+!   call ext_adios2_get_var_td_real(DataHandle,Element,DateStr,          &
+!        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_' ,Data,Count,OutCount,Status)
+!   return
+! end subroutine ext_adios2_get_dom_td_real
 
-subroutine ext_adios2_get_dom_td_integer(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Element
-  character*(*)         ,intent(in)     :: DateStr
-  integer               ,intent(out)    :: Data(*)
-  integer               ,intent(in)     :: Count
-  integer               ,intent(out)    :: OutCount
-  integer               ,intent(out)    :: Status
-  call ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,          &
-       'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'    ,Data,Count,OutCount,Status)
-  return
-end subroutine ext_adios2_get_dom_td_integer
+! subroutine ext_adios2_get_dom_td_integer(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+!   integer               ,intent(in)     :: DataHandle
+!   character*(*)         ,intent(in)     :: Element
+!   character*(*)         ,intent(in)     :: DateStr
+!   integer               ,intent(out)    :: Data(*)
+!   integer               ,intent(in)     :: Count
+!   integer               ,intent(out)    :: OutCount
+!   integer               ,intent(out)    :: Status
+!   call ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,          &
+!        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'    ,Data,Count,OutCount,Status)
+!   return
+! end subroutine ext_adios2_get_dom_td_integer
 
-subroutine ext_adios2_get_dom_td_double(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Element
-  character*(*)         ,intent(in)     :: DateStr
-  real*8                ,intent(out)    :: Data(*)
-  integer               ,intent(in)     :: Count
-  integer               ,intent(out)    :: OutCount
-  integer               ,intent(out)    :: Status
-  call ext_adios2_get_var_td_double(DataHandle,Element,DateStr,          &
-       'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'   ,Data,Count,OutCount,Status)
-  return
-end subroutine ext_adios2_get_dom_td_double
+! subroutine ext_adios2_get_dom_td_double(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+!   integer               ,intent(in)     :: DataHandle
+!   character*(*)         ,intent(in)     :: Element
+!   character*(*)         ,intent(in)     :: DateStr
+!   real*8                ,intent(out)    :: Data(*)
+!   integer               ,intent(in)     :: Count
+!   integer               ,intent(out)    :: OutCount
+!   integer               ,intent(out)    :: Status
+!   call ext_adios2_get_var_td_double(DataHandle,Element,DateStr,          &
+!        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'   ,Data,Count,OutCount,Status)
+!   return
+! end subroutine ext_adios2_get_dom_td_double
 
-subroutine ext_adios2_get_dom_td_logical(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Element
-  character*(*)         ,intent(in)     :: DateStr
-  logical               ,intent(out)    :: Data(*)
-  integer               ,intent(in)     :: Count
-  integer               ,intent(out)    :: OutCount
-  integer               ,intent(out)    :: Status
-  call ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,          &
-       'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'    ,Data,Count,OutCount,Status)
-  return
-end subroutine ext_adios2_get_dom_td_logical
+! subroutine ext_adios2_get_dom_td_logical(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+!   integer               ,intent(in)     :: DataHandle
+!   character*(*)         ,intent(in)     :: Element
+!   character*(*)         ,intent(in)     :: DateStr
+!   logical               ,intent(out)    :: Data(*)
+!   integer               ,intent(in)     :: Count
+!   integer               ,intent(out)    :: OutCount
+!   integer               ,intent(out)    :: Status
+!   call ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,          &
+!        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'    ,Data,Count,OutCount,Status)
+!   return
+! end subroutine ext_adios2_get_dom_td_logical
 
-subroutine ext_adios2_get_dom_td_char(DataHandle,Element,DateStr,Data,Status)
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Element
-  character*(*)         ,intent(in)     :: DateStr
-  character*(*)         ,intent(out)    :: Data
-  integer               ,intent(out)    :: Status
-  call ext_adios2_get_var_td_char(DataHandle,Element,DateStr,          &
-       'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_' ,Data,Status)
-  return
-end subroutine ext_adios2_get_dom_td_char
+! subroutine ext_adios2_get_dom_td_char(DataHandle,Element,DateStr,Data,Status)
+!   integer               ,intent(in)     :: DataHandle
+!   character*(*)         ,intent(in)     :: Element
+!   character*(*)         ,intent(in)     :: DateStr
+!   character*(*)         ,intent(out)    :: Data
+!   integer               ,intent(out)    :: Status
+!   call ext_adios2_get_var_td_char(DataHandle,Element,DateStr,          &
+!        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_' ,Data,Status)
+!   return
+! end subroutine ext_adios2_get_dom_td_char
 
 
 subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
@@ -2351,9 +2349,9 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   DomainStart,DomainEnd,MemoryStart,MemoryEnd,PatchStart,PatchEnd,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer                       ,intent(in)    :: DataHandle
   character*(*)                 ,intent(in)    :: DateStr
   character*(*)                 ,intent(in)    :: Var
@@ -2376,12 +2374,14 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   character (VarNameLen)                       :: VarName
   character (3)                                :: MemO
   character (3)                                :: UCMemO
-  integer                                      :: VarID
+  type(adios2_variable)                        :: VarID
+  type(adios2_attribute)                       :: AttributeID
   integer      ,dimension(NVarDims)            :: Length_global, Length_native
   integer      ,dimension(NVarDims)            :: Length
-  integer      ,dimension(NVarDims)            :: VDimIDs
+  type(adios2_attribute) ,dimension(NVarDims)  :: VDimIDs
   character(80),dimension(NVarDims)            :: RODimNames
   integer      ,dimension(NVarDims)            :: StoredStart
+  integer      ,dimension(NVarDims)            :: zero
   integer      ,dimension(:,:,:,:),allocatable :: XField
   integer                                      :: stat
   integer                                      :: NVar
@@ -2464,7 +2464,9 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
           if(DH%DimLengths(i) == Length_global(j)) then
             exit
           elseif(DH%DimLengths(i) == NO_DIM) then
-            stat = NFMPI_DEF_DIM(NCID,DH%DimNames(i),i2offset(Length_global(j)),DH%DimIDs(i))
+            call adios2_define_attribute(DH%DimIDs(i), DH%adios2IO, '_DIM_'//DH%DimNames(i), &
+              Length_global(j), stat)
+            !stat = NFMPI_DEF_DIM(NCID,DH%DimNames(i),i2offset(Length_global(j)),DH%DimIDs(i))
             call adios2_err(stat,Status)
             if(Status /= WRF_NO_ERR) then
               write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
@@ -2500,7 +2502,9 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
           do i=1,MaxDims
             if (DH%DimLengths(i) == NO_DIM) then
               DH%DimNames(i) = RODimNames(j)
-              stat = NFMPI_DEF_DIM(NCID,DH%DimNames(i),i2offset(Length_global(j)),DH%DimIDs(i))
+              call adios2_define_attribute(DH%DimIDs(i), DH%adios2IO, '_DIM_'//DH%DimNames(i), &
+              Length_global(j), stat)
+              !stat = NFMPI_DEF_DIM(NCID,DH%DimNames(i),i2offset(Length_global(j)),DH%DimIDs(i))
               call adios2_err(stat,Status)
               if(Status /= WRF_NO_ERR) then
                 write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
@@ -2521,16 +2525,16 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
       VDimIDs(j) = DH%DimIDs(i)
       DH%VarDimLens(j,NVar) = Length_global(j)
     enddo
-    VDimIDs(NDim+1) = DH%DimUnlimID ! ML adds time dimension to every new variable (not needed for adios?)
+    !VDimIDs(NDim+1) = DH%DimUnlimID ! ML adds time dimension to every new variable (not needed for adios?)
     select case (FieldType)
       case (WRF_REAL)
-        XType = adios2_type_float
+        XType = adios2_type_real
       case (WRF_DOUBLE)
-        Xtype = adios2_type_double
+        Xtype = adios2_type_dp
       case (WRF_INTEGER)
-        XType = adios2_type_int32_t
+        XType = adios2_type_integer4
       case (WRF_LOGICAL)
-        XType = adios2_type_int32_t
+        XType = adios2_type_integer4
       case default
         Status = WRF_WARN_DATA_TYPE_NOT_FOUND
         write(msg,*) 'Warning DATA TYPE NOT FOUND in ',__FILE__,', line', __LINE__ 
@@ -2538,10 +2542,13 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
         return
     end select
 
-    !need  type(adios2_io):: io, shape_dims, start_dims, count_dims
-    call adios2_define_variable(VarID, io, VarName, XType, NDim+1, &
-                                shape_dims, start_dims, count_dims, &
-                                adios2_constant_dims, ierr)
+    !ML shape_dims (global dimension dims) can be taken from dimensions lLength_global, start dims
+    ! and count dims can be left at 0 for now (see e3mf example) 
+    zero(:) = 0
+    !todo add dims as attributes to variable?
+    call adios2_define_variable(VarID, DH%adios2IO, VarName, XType, &
+                               NDim, Length_global, zero, zero, &
+                               adios2_variable_dims, stat)
     !stat = NFMPI_DEF_VAR(NCID,VarName,XType,NDim+1,VDimIDs,VarID)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
@@ -2550,8 +2557,10 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
       return
     endif
     DH%VarIDs(NVar) = VarID
-    ! ML variable specific attribute - FieldType
-    stat = NFMPI_PUT_ATT_INT(NCID,VarID,'FieldType',NF_INT,i2offset(1),FieldType)
+    ! ML AtributeID is used as a throwaway variable, does not seem like it is required
+    call adios2_define_attribute(AttributeID,DH%adios2IO, 'FieldType', &
+              FieldType, VarID%name, '/', stat)
+    !stat = NFMPI_PUT_ATT_INT(NCID,VarID,'FieldType',NF_INT,i2offset(1),FieldType)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'ext_adios2_write_field: adios2 error in ',__FILE__,', line', __LINE__ 
@@ -2561,7 +2570,9 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
     call reorder(MemoryOrder,MemO)
     call uppercase(MemO,UCMemO)
     ! ML variable specific attribute - MemoryORder
-    stat = NFMPI_PUT_ATT_TEXT(NCID,VarID,'MemoryOrder',i2offset(3),UCMemO)
+    call adios2_define_attribute(AttributeID, DH%adios2IO, 'MemoryOrder', &
+             UCMemO, VarID%name, '/', stat)
+    !stat = NFMPI_PUT_ATT_TEXT(NCID,VarID,'MemoryOrder',i2offset(3),UCMemO)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'ext_adios2_write_field: adios2 error in ',__FILE__,', line', __LINE__ 
@@ -3103,9 +3114,9 @@ end subroutine ext_adios2_get_previous_time
 subroutine ext_adios2_get_next_var(DataHandle, VarName, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-  use adios2
   integer               ,intent(in)     :: DataHandle
   character*(*)         ,intent(out)    :: VarName
   integer               ,intent(out)    :: Status
@@ -3151,8 +3162,8 @@ end subroutine ext_adios2_get_next_var
 subroutine ext_adios2_end_of_frame(DataHandle, Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
-  implicit none
   use adios2
+  implicit none
   include 'wrf_status_codes.h'
   integer               ,intent(in)     :: DataHandle
   integer               ,intent(out)    :: Status
