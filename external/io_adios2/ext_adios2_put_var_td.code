@@ -59,7 +59,9 @@
   integer                               :: NVar
   integer                               :: TimeIndex
   integer                               :: NCID
-  integer      ,dimension(1)            :: zero
+  integer(kind=8)      ,dimension(1)    :: zero
+  integer(kind=8)                       :: shape_dims(1) 
+
 
 
   VarName = Var
@@ -142,9 +144,10 @@
     !VDims(1) = DH%DimIDs(i)
     !VDims(2) = DH%DimUnlimID
     zero(1) = 0
+    shape_dims(1) = LENGTH
     !
     call adios2_define_variable(DH%MDVarIDs(NVar), DH%adios2IO, Name, ADIOS2TYPE, &
-                                1, LENGTH, zero, zero, &
+                                1, shape_dims, zero, zero, &
                                 adios2_variable_dims, stat)
     !stat = NFMPI_DEF_VAR(NCID,Name,NF_TYPE,2,VDims,DH%MDVarIDs(NVar))
     call adios2_err(stat,Status)

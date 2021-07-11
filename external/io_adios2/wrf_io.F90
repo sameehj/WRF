@@ -2381,7 +2381,8 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   type(adios2_attribute) ,dimension(NVarDims)  :: VDimIDs
   character(80),dimension(NVarDims)            :: RODimNames
   integer      ,dimension(NVarDims)            :: StoredStart
-  integer      ,dimension(NVarDims)            :: zero
+  integer(kind=8)      ,dimension(NVarDims)    :: zero
+  integer(kind=8)      ,dimension(NVarDims)    :: shape_dims
   integer      ,dimension(:,:,:,:),allocatable :: XField
   integer                                      :: stat
   integer                                      :: NVar
@@ -2545,9 +2546,10 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
     !ML shape_dims (global dimension dims) can be taken from dimensions lLength_global, start dims
     ! and count dims can be left at 0 for now (see e3mf example) 
     zero(:) = 0
+    shape_dims(:) = Length_global(:)
     !todo add dims as attributes to variable?
     call adios2_define_variable(VarID, DH%adios2IO, VarName, XType, &
-                               NDim, Length_global, zero, zero, &
+                               NDim, shape_dims, zero, zero, &
                                adios2_variable_dims, stat)
     !stat = NFMPI_DEF_VAR(NCID,VarName,XType,NDim+1,VDimIDs,VarID)
     call adios2_err(stat,Status)
