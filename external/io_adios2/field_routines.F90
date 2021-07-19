@@ -69,7 +69,7 @@ subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,St
 
   if(IO == 'write') then
     !adios2_set_selection to set start dims and count dims
-    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
@@ -121,7 +121,7 @@ subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,
 
   if(IO == 'write') then
     !adios2_set_selection to set start dims and count dims
-    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_DoubleFieldIO ',__FILE__,', line', __LINE__
@@ -173,7 +173,7 @@ subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Sta
 
   if(IO == 'write') then
     !adios2_set_selection to set start dims and count dims
-    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
@@ -245,7 +245,7 @@ subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data
       enddo
     enddo
     !adios2_set_selection to set start dims and count dims
-    call adios2_set_selection(VarID, NVarDims, VStart_mpi, VCount_mpi, stat)
+    call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_LogicalFieldIO ',__FILE__,', line', __LINE__

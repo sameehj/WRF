@@ -1,4 +1,0 @@
-* TODO List ADIOS2 integration [0/1]
-- [ ] "Open_for_update" needed for history and restart writes
-- [ ] need to be able to identify the different types of writes
-- [ ] reads

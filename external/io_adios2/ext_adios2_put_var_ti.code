@@ -111,12 +111,18 @@
     enddo
     call adios2_define_attribute(AttributeID,DH%adios2IO, trim(Element), &
               Buffer, Count, DH%VarIDs(NVar)%name, '/', stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'ext_adios2_put_var_ti: adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
 #elif defined(CHAR_TYPE)
     call adios2_define_attribute(AttributeID,DH%adios2IO, trim(Element), &
               Data, 1, DH%VarIDs(NVar)%name, '/', stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'ext_adios2_put_var_td: adios2 error in ',__FILE__,', line', __LINE__ 
+      write(msg,*) 'ext_adios2_put_var_ti: adios2 error in ',__FILE__,', line', __LINE__ 
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
@@ -130,7 +136,7 @@
               Data, Count, DH%VarIDs(NVar)%name, '/', stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'ext_adios2_put_var_td: adios2 error in ',__FILE__,', line', __LINE__ 
+      write(msg,*) 'ext_adios2_put_var_ti : adios2 error in ',__FILE__,', line', __LINE__ 
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif

@@ -348,8 +348,8 @@ SUBROUTINE med_sidata_input ( grid , config_flags )
       ENDIF
 
       SELECT CASE ( use_package(io_form_auxinput1) )
-#if defined(NETCDF) || defined(PNETCDF) || defined(PIO)
-      CASE ( IO_NETCDF , IO_PNETCDF , IO_PIO )
+#if defined(NETCDF) || defined(PNETCDF) || defined(PIO) || defined(ADIOS2)
+      CASE ( IO_NETCDF , IO_PNETCDF , IO_PIO, IO_ADIOS2 )
 
       !  Open the wrfinput file.
 

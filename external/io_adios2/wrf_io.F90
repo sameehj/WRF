@@ -408,6 +408,14 @@ module ext_adios2_support_routines
        call wrf_debug ( WARN , TRIM(msg))
        return
      endif
+     !PRINT *, '*********New ADIOS TIME STEP*********'
+     !call adios2_begin_step(DH%adios2Engine, stat)
+     !call adios2_err(stat,Status)
+     !if(Status /= WRF_NO_ERR) then
+     !  write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+     !  call wrf_debug ( WARN , TRIM(msg))
+     !  return
+     !endif
      !begin new adios time ste?
    else
      do i=1,MaxTimes
@@ -888,28 +896,28 @@ module ext_adios2_support_routines
  
  end module ext_adios2_support_routines
 
-! subroutine ext_adios2_open_for_read(DatasetName, Comm1, Comm2, SysDepInfo, DataHandle, Status)
-!   use wrf_data_adios2
-!   use ext_adios2_support_routines
-!   implicit none
-!   include 'wrf_status_codes.h'
-!   use adios2
-!   character *(*), INTENT(IN)   :: DatasetName
-!   integer       , INTENT(IN)   :: Comm1, Comm2
-!   character *(*), INTENT(IN)   :: SysDepInfo
-!   integer       , INTENT(OUT)  :: DataHandle
-!   integer       , INTENT(OUT)  :: Status
-!   DataHandle = 0   ! dummy setting to quiet warning message
-!   CALL ext_adios2_open_for_read_begin( DatasetName, Comm1, Comm2, SysDepInfo, DataHandle, Status )
-!   IF ( Status .EQ. WRF_NO_ERR ) THEN
-!     CALL ext_adios2_open_for_read_commit( DataHandle, Status )
-!   ENDIF
-!   return
-! end subroutine ext_adios2_open_for_read
+subroutine ext_adios2_open_for_read(DatasetName, Comm1, Comm2, SysDepInfo, DataHandle, Status)
+  ! use wrf_data_adios2
+  ! use ext_adios2_support_routines
+  ! implicit none
+  ! include 'wrf_status_codes.h'
+  ! use adios2
+  ! character *(*), INTENT(IN)   :: DatasetName
+  ! integer       , INTENT(IN)   :: Comm1, Comm2
+  ! character *(*), INTENT(IN)   :: SysDepInfo
+  ! integer       , INTENT(OUT)  :: DataHandle
+  ! integer       , INTENT(OUT)  :: Status
+  ! DataHandle = 0   ! dummy setting to quiet warning message
+  ! CALL ext_adios2_open_for_read_begin( DatasetName, Comm1, Comm2, SysDepInfo, DataHandle, Status )
+  ! IF ( Status .EQ. WRF_NO_ERR ) THEN
+  !   CALL ext_adios2_open_for_read_commit( DataHandle, Status )
+  ! ENDIF
+  return
+end subroutine ext_adios2_open_for_read
 
 !ends training phase; switches internal flag to enable input
 !must be paired with call to ext_adios2_open_for_read_begin
-! subroutine ext_adios2_open_for_read_commit(DataHandle, Status)
+subroutine ext_adios2_open_for_read_commit(DataHandle, Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -934,10 +942,10 @@ module ext_adios2_support_routines
 !   DH%FileStatus      = WRF_FILE_OPENED_FOR_READ
 !   DH%first_operation  = .TRUE.
 !   Status = WRF_NO_ERR
-!   return
-! end subroutine ext_adios2_open_for_read_commit
+   return
+end subroutine ext_adios2_open_for_read_commit
 
-! subroutine ext_adios2_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, DataHandle, Status)
+subroutine ext_adios2_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, DataHandle, Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -1068,10 +1076,11 @@ module ext_adios2_support_routines
 !   DH%TimesVarID      = VarID
 !   DH%TimeIndex       = 0
 !   return
-! end subroutine ext_adios2_open_for_read_begin
+  return
+end subroutine ext_adios2_open_for_read_begin
 
 ! ML TODO Needed for Adios with single file?
-! subroutine ext_adios2_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataHandle, Status)
+subroutine ext_adios2_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataHandle, Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -1201,9 +1210,8 @@ module ext_adios2_support_routines
 !   DH%CurrentTime     = 0
 !   DH%TimesVarID      = VarID
 !   DH%TimeIndex       = 0
-!   return
-! end subroutine ext_adios2_open_for_update
-
+  return
+end subroutine ext_adios2_open_for_update
 
 SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHandle,Status)
   use wrf_data_adios2
@@ -1247,13 +1255,6 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   DH%TimeIndex = 0
   DH%Times     = ZeroDate
 
-  !ADIOS2 declare i/o
-  if(DH%first_operation) then
-     !TODO check for history vs restart
-    call adios2_declare_io(DH%adios2IO, adios, "WRF_WRITER1", stat)
-    DH%first_operation = .false.
-  end if
-
   ! Remove the dash/underscore change to filenames for adios2...
   write(newFileName, fmt="(a)") TRIM(ADJUSTL(FileName))
   do i = 1, len_trim(newFileName)
@@ -1293,6 +1294,14 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   !variableH = adios2_define_variable(file->ioH, dimname, adios2_type_uint64_t,
   !  0 , NULL, NULL, NULL, adios2_constant_dims_false);
   !}
+  
+  !ADIOS2 declare i/o
+  if(DH%first_operation) then
+    !TODO check for history vs restart
+   !call adios2_declare_io(DH%adios2IO, adios, "WRF_WRITER1", stat)
+   call adios2_declare_io(DH%adios2IO, adios, DH%FileName, stat)
+   DH%first_operation = .false.
+ end if
 
   DH%VarNames  (1:MaxVars) = NO_NAME
   DH%MDVarNames(1:MaxVars) = NO_NAME
@@ -1483,7 +1492,7 @@ end subroutine ext_adios2_iosync
 
 
 !puts netcdf file back into define mode
-! subroutine ext_adios2_redef( DataHandle, Status)
+subroutine ext_adios2_redef( DataHandle, Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -1529,8 +1538,8 @@ end subroutine ext_adios2_iosync
 !   !  return
 !   !endif
 !   DH%FileStatus  = WRF_FILE_OPENED_NOT_COMMITTED
-!   return
-! end subroutine ext_adios2_redef
+   return
+end subroutine ext_adios2_redef
 
 subroutine ext_adios2_enddef( DataHandle, Status)
   use wrf_data_adios2
@@ -1584,6 +1593,7 @@ end subroutine ext_adios2_enddef
 
 subroutine ext_adios2_ioinit(SysDepInfo, Status)
   use wrf_data_adios2
+  use ext_adios2_support_routines
   use adios2
   implicit none
   include 'wrf_status_codes.h'
@@ -1666,7 +1676,7 @@ subroutine ext_adios2_ioexit(Status)
   return
 end subroutine ext_adios2_ioexit
 
-! subroutine ext_adios2_get_dom_ti_real(DataHandle,Element,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_ti_real(DataHandle,Element,Data,Count,OutCount,Status)
 ! #define ROUTINE_TYPE 'REAL'
 ! #define TYPE_DATA real,intent(out) :: Data(*)
 ! #define TYPE_COUNT integer,intent(in) :: Count
@@ -1676,9 +1686,10 @@ end subroutine ext_adios2_ioexit
 ! #define NF_ROUTINE NFMPI_GET_ATT_REAL 
 ! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
 ! #include "ext_adios2_get_dom_ti.code"
-! end subroutine ext_adios2_get_dom_ti_real
+return
+end subroutine ext_adios2_get_dom_ti_real
 
-! subroutine ext_adios2_get_dom_ti_integer(DataHandle,Element,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_ti_integer(DataHandle,Element,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE 
 ! #undef TYPE_DATA 
 ! #undef TYPE_BUFFER
@@ -1692,9 +1703,10 @@ end subroutine ext_adios2_ioexit
 ! #define NF_ROUTINE NFMPI_GET_ATT_INT
 ! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
 ! #include "ext_adios2_get_dom_ti.code"
-! end subroutine ext_adios2_get_dom_ti_integer
+  return
+end subroutine ext_adios2_get_dom_ti_integer
 
-! subroutine ext_adios2_get_dom_ti_double(DataHandle,Element,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_ti_double(DataHandle,Element,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE 
 ! #undef TYPE_DATA 
 ! #undef TYPE_BUFFER
@@ -1708,9 +1720,10 @@ end subroutine ext_adios2_ioexit
 ! #define NF_ROUTINE NFMPI_GET_ATT_DOUBLE
 ! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))
 ! #include "ext_adios2_get_dom_ti.code"
-! end subroutine ext_adios2_get_dom_ti_double
+  return
+end subroutine ext_adios2_get_dom_ti_double
 
-! subroutine ext_adios2_get_dom_ti_logical(DataHandle,Element,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_ti_logical(DataHandle,Element,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE 
 ! #undef TYPE_DATA 
 ! #undef TYPE_BUFFER
@@ -1724,9 +1737,10 @@ end subroutine ext_adios2_ioexit
 ! #define NF_ROUTINE NFMPI_GET_ATT_INT
 ! #define COPY   Data(1:min(Len,Count)) = Buffer(1:min(Len,Count))==1
 ! #include "ext_adios2_get_dom_ti.code"
-! end subroutine ext_adios2_get_dom_ti_logical
+  return
+end subroutine ext_adios2_get_dom_ti_logical
 
-! subroutine ext_adios2_get_dom_ti_char(DataHandle,Element,Data,Status)
+subroutine ext_adios2_get_dom_ti_char(DataHandle,Element,Data,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_COUNT
@@ -1742,7 +1756,8 @@ end subroutine ext_adios2_ioexit
 ! #define CHAR_TYPE
 ! #include "ext_adios2_get_dom_ti.code"
 ! #undef CHAR_TYPE
-! end subroutine ext_adios2_get_dom_ti_char
+  return
+end subroutine ext_adios2_get_dom_ti_char
 
 subroutine ext_adios2_put_dom_ti_real(DataHandle,Element,Data,Count,Status)
 #undef ROUTINE_TYPE 
@@ -2004,7 +2019,7 @@ subroutine ext_adios2_put_var_td_char(DataHandle,Element,DateStr,Var,Data,Status
 #include "ext_adios2_put_var_td.code"
 end subroutine ext_adios2_put_var_td_char
 
-! subroutine ext_adios2_get_var_ti_real(DataHandle,Element,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_ti_real(DataHandle,Element,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2022,9 +2037,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define NF_ROUTINE NFMPI_GET_ATT_REAL
 ! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
 ! #include "ext_adios2_get_var_ti.code"
-! end subroutine ext_adios2_get_var_ti_real
+  return
+end subroutine ext_adios2_get_var_ti_real
 
-! subroutine ext_adios2_get_var_td_real(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_td_real(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2044,9 +2060,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define LENGTH min(Count,Len1)
 ! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
 ! #include "ext_adios2_get_var_td.code"
-! end subroutine ext_adios2_get_var_td_real
+  return
+end subroutine ext_adios2_get_var_td_real
 
-! subroutine ext_adios2_get_var_ti_double(DataHandle,Element,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_ti_double(DataHandle,Element,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2064,9 +2081,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define NF_ROUTINE NFMPI_GET_ATT_DOUBLE
 ! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
 ! #include "ext_adios2_get_var_ti.code"
-! end subroutine ext_adios2_get_var_ti_double
+  return
+end subroutine ext_adios2_get_var_ti_double
 
-! subroutine ext_adios2_get_var_td_double(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_td_double(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2086,9 +2104,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define LENGTH min(Count,Len1)
 ! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
 ! #include "ext_adios2_get_var_td.code"
-! end subroutine ext_adios2_get_var_td_double
+  return
+end subroutine ext_adios2_get_var_td_double
 
-! subroutine ext_adios2_get_var_ti_integer(DataHandle,Element,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_ti_integer(DataHandle,Element,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2106,9 +2125,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define NF_ROUTINE NFMPI_GET_ATT_INT
 ! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))
 ! #include "ext_adios2_get_var_ti.code"
-! end subroutine ext_adios2_get_var_ti_integer
+  return
+end subroutine ext_adios2_get_var_ti_integer
 
-! subroutine ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2128,9 +2148,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define LENGTH min(Count,Len1)
 ! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))
 ! #include "ext_adios2_get_var_td.code"
-! end subroutine ext_adios2_get_var_td_integer
+  return
+end subroutine ext_adios2_get_var_td_integer
 
-! subroutine ext_adios2_get_var_ti_logical(DataHandle,Element,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_ti_logical(DataHandle,Element,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2148,9 +2169,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define NF_ROUTINE NFMPI_GET_ATT_INT
 ! #define COPY   Data(1:min(XLen,Count)) = Buffer(1:min(XLen,Count))==1
 ! #include "ext_adios2_get_var_ti.code"
-! end subroutine ext_adios2_get_var_ti_logical
+  return
+end subroutine ext_adios2_get_var_ti_logical
 
-! subroutine ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,Var,Data,Count,OutCount,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2170,9 +2192,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define LENGTH min(Count,Len1)
 ! #define COPY   Data(1:min(Len1,Count)) = Buffer(1:min(Len1,Count))==1
 ! #include "ext_adios2_get_var_td.code"
-! end subroutine ext_adios2_get_var_td_logical
+  return
+end subroutine ext_adios2_get_var_td_logical
 
-! subroutine ext_adios2_get_var_ti_char(DataHandle,Element,Var,Data,Status)
+subroutine ext_adios2_get_var_ti_char(DataHandle,Element,Var,Data,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2192,9 +2215,10 @@ end subroutine ext_adios2_put_var_td_char
 ! #define CHAR_TYPE
 ! #include "ext_adios2_get_var_ti.code"
 ! #undef CHAR_TYPE
-! end subroutine ext_adios2_get_var_ti_char
+  return
+end subroutine ext_adios2_get_var_ti_char
 
-! subroutine ext_adios2_get_var_td_char(DataHandle,Element,DateStr,Var,Data,Status)
+subroutine ext_adios2_get_var_td_char(DataHandle,Element,DateStr,Var,Data,Status)
 ! #undef ROUTINE_TYPE
 ! #undef TYPE_DATA
 ! #undef TYPE_BUFFER
@@ -2214,7 +2238,8 @@ end subroutine ext_adios2_put_var_td_char
 ! #define CHAR_TYPE
 ! #include "ext_adios2_get_var_td.code"
 ! #undef CHAR_TYPE
-! end subroutine ext_adios2_get_var_td_char
+  return
+end subroutine ext_adios2_get_var_td_char
 
 subroutine ext_adios2_put_dom_td_real(DataHandle,Element,DateStr,Data,Count,Status)
   integer               ,intent(in)     :: DataHandle
@@ -2280,7 +2305,7 @@ subroutine ext_adios2_put_dom_td_char(DataHandle,Element,DateStr,Data,Status)
   return
 end subroutine ext_adios2_put_dom_td_char
 
-! subroutine ext_adios2_get_dom_td_real(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_td_real(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
 !   integer               ,intent(in)     :: DataHandle
 !   character*(*)         ,intent(in)     :: Element
 !   character*(*)         ,intent(in)     :: DateStr
@@ -2290,10 +2315,10 @@ end subroutine ext_adios2_put_dom_td_char
 !   integer               ,intent(out)    :: Status
 !   call ext_adios2_get_var_td_real(DataHandle,Element,DateStr,          &
 !        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_' ,Data,Count,OutCount,Status)
-!   return
-! end subroutine ext_adios2_get_dom_td_real
+   return
+end subroutine ext_adios2_get_dom_td_real
 
-! subroutine ext_adios2_get_dom_td_integer(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_td_integer(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
 !   integer               ,intent(in)     :: DataHandle
 !   character*(*)         ,intent(in)     :: Element
 !   character*(*)         ,intent(in)     :: DateStr
@@ -2303,10 +2328,10 @@ end subroutine ext_adios2_put_dom_td_char
 !   integer               ,intent(out)    :: Status
 !   call ext_adios2_get_var_td_integer(DataHandle,Element,DateStr,          &
 !        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'    ,Data,Count,OutCount,Status)
-!   return
-! end subroutine ext_adios2_get_dom_td_integer
+   return
+end subroutine ext_adios2_get_dom_td_integer
 
-! subroutine ext_adios2_get_dom_td_double(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_td_double(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
 !   integer               ,intent(in)     :: DataHandle
 !   character*(*)         ,intent(in)     :: Element
 !   character*(*)         ,intent(in)     :: DateStr
@@ -2316,10 +2341,10 @@ end subroutine ext_adios2_put_dom_td_char
 !   integer               ,intent(out)    :: Status
 !   call ext_adios2_get_var_td_double(DataHandle,Element,DateStr,          &
 !        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'   ,Data,Count,OutCount,Status)
-!   return
-! end subroutine ext_adios2_get_dom_td_double
+  return
+end subroutine ext_adios2_get_dom_td_double
 
-! subroutine ext_adios2_get_dom_td_logical(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
+subroutine ext_adios2_get_dom_td_logical(DataHandle,Element,DateStr,Data,Count,OutCount,Status)
 !   integer               ,intent(in)     :: DataHandle
 !   character*(*)         ,intent(in)     :: Element
 !   character*(*)         ,intent(in)     :: DateStr
@@ -2329,10 +2354,10 @@ end subroutine ext_adios2_put_dom_td_char
 !   integer               ,intent(out)    :: Status
 !   call ext_adios2_get_var_td_logical(DataHandle,Element,DateStr,          &
 !        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_'    ,Data,Count,OutCount,Status)
-!   return
-! end subroutine ext_adios2_get_dom_td_logical
+  return
+end subroutine ext_adios2_get_dom_td_logical
 
-! subroutine ext_adios2_get_dom_td_char(DataHandle,Element,DateStr,Data,Status)
+subroutine ext_adios2_get_dom_td_char(DataHandle,Element,DateStr,Data,Status)
 !   integer               ,intent(in)     :: DataHandle
 !   character*(*)         ,intent(in)     :: Element
 !   character*(*)         ,intent(in)     :: DateStr
@@ -2340,8 +2365,8 @@ end subroutine ext_adios2_put_dom_td_char
 !   integer               ,intent(out)    :: Status
 !   call ext_adios2_get_var_td_char(DataHandle,Element,DateStr,          &
 !        'E_X_T_D_O_M_A_I_N_M_E_T_A_DATA_' ,Data,Status)
-!   return
-! end subroutine ext_adios2_get_dom_td_char
+  return
+end subroutine ext_adios2_get_dom_td_char
 
 
 subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
@@ -2432,7 +2457,10 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   call ExtOrder(MemoryOrder,Length_global,Status)
 
   call ExtOrderStr(MemoryOrder,DimNames,RODimNames,Status)
-
+  
+  lMemoryStart(1:NDim) = MemoryStart(1:NDim)
+  lMemoryEnd(1:NDim) = MemoryEnd(1:NDim)
+  
   if(DH%FileStatus == WRF_FILE_NOT_OPENED) then
     Status = WRF_WARN_FILE_NOT_OPENED
     write(msg,*) 'Warning FILE NOT OPENED in ',__FILE__,', line', __LINE__ 
@@ -2547,10 +2575,17 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
     ! and count dims can be left at 0 for now (see e3mf example) 
     zero(:) = 0
     shape_dims(:) = Length_global(:)
-    !todo add dims as attributes to variable?
-    call adios2_define_variable(VarID, DH%adios2IO, VarName, XType, &
-                               NDim, shape_dims, zero, zero, &
+    if(NDim == 0) then
+      shape_dims(:) = 1
+      call adios2_define_variable(VarID, DH%adios2IO, VarName, XType, &
+                               1, shape_dims, zero, zero, &
                                adios2_variable_dims, stat)
+    else
+    !todo add dims as attributes to variable?
+      call adios2_define_variable(VarID, DH%adios2IO, VarName, XType, &
+                               NDim, shape_dims, zero, zero, &
+                              adios2_variable_dims, stat)
+    endif
     !stat = NFMPI_DEF_VAR(NCID,VarName,XType,NDim+1,VDimIDs,VarID)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
@@ -2665,9 +2700,9 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   return
 end subroutine ext_adios2_write_field
 
-! subroutine ext_adios2_read_field(DataHandle,DateStr,Var,Field,FieldType,Comm,  &
-!   IOComm, DomainDesc, MemoryOrdIn, Stagger, DimNames,                       &
-!   DomainStart,DomainEnd,MemoryStart,MemoryEnd,PatchStart,PatchEnd,Status)
+subroutine ext_adios2_read_field(DataHandle,DateStr,Var,Field,FieldType,Comm,  &
+  IOComm, DomainDesc, MemoryOrdIn, Stagger, DimNames,                       &
+  DomainStart,DomainEnd,MemoryStart,MemoryEnd,PatchStart,PatchEnd,Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -2916,8 +2951,8 @@ end subroutine ext_adios2_write_field
 !     call wrf_debug ( FATAL , msg)
 !   endif
 !   DH%first_operation  = .FALSE.
-!   return
-! end subroutine ext_adios2_read_field
+  return
+end subroutine ext_adios2_read_field
 
 subroutine ext_adios2_inquire_opened( DataHandle, FileName , FileStatus, Status )
   use wrf_data_adios2
@@ -3177,7 +3212,7 @@ end subroutine ext_adios2_end_of_frame
 
 ! NOTE:  For scalar variables NDim is set to zero and DomainStart and 
 ! NOTE:  DomainEnd are left unmodified.  
-! subroutine ext_adios2_get_var_info(DataHandle,Name,NDim,MemoryOrder,Stagger,DomainStart,DomainEnd,WrfType,Status)
+subroutine ext_adios2_get_var_info(DataHandle,Name,NDim,MemoryOrder,Stagger,DomainStart,DomainEnd,WrfType,Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -3320,10 +3355,10 @@ end subroutine ext_adios2_end_of_frame
 !     write(msg,*) 'Fatal error BAD FILE STATUS in ',__FILE__,', line', __LINE__ 
 !     call wrf_debug ( FATAL , msg)
 !   endif
-!   return
-! end subroutine ext_adios2_get_var_info
+  return
+end subroutine ext_adios2_get_var_info
 
-! subroutine ext_adios2_warning_str( Code, ReturnString, Status)
+subroutine ext_adios2_warning_str( Code, ReturnString, Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -3513,12 +3548,12 @@ end subroutine ext_adios2_end_of_frame
 !       Status=WRF_NO_ERR
 !   END SELECT
 
-!   return
-! end subroutine ext_adios2_warning_str
+  return
+end subroutine ext_adios2_warning_str
 
 
 ! !returns message string for all WRF and adios2 warning/error status codes
-! subroutine ext_adios2_error_str( Code, ReturnString, Status)
+subroutine ext_adios2_error_str( Code, ReturnString, Status)
 !   use wrf_data_adios2
 !   use ext_adios2_support_routines
 !   implicit none
@@ -3561,5 +3596,5 @@ end subroutine ext_adios2_end_of_frame
 !       Status=WRF_NO_ERR
 !   END SELECT
 
-!   return
-! end subroutine ext_adios2_error_str
+  return
+end subroutine ext_adios2_error_str

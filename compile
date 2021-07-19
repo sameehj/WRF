@@ -126,7 +126,7 @@ else
     setenv WRF_EXP_CORE 0
     setenv WRF_PLUS_CORE 0
   endif
-
+#setenv ADIOS2
 # these settings get passed down through the environment in the
 # calls to Make
   if ( ! $?WRF_HYDRO )       then

@@ -147,8 +147,7 @@
     shape_dims(1) = LENGTH
     !
     call adios2_define_variable(DH%MDVarIDs(NVar), DH%adios2IO, Name, ADIOS2TYPE, &
-                                1, shape_dims, zero, zero, &
-                                adios2_variable_dims, stat)
+                                stat)
     !stat = NFMPI_DEF_VAR(NCID,Name,NF_TYPE,2,VDims,DH%MDVarIDs(NVar))
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
@@ -214,13 +213,13 @@
            Buffer(i)=0
         endif
       enddo
-      call adios2_set_selection(DH%MDVarIDs(NVar), 1, VStart, VCount, stat)
-      call adios2_err(stat,Status)
-      if(Status /= WRF_NO_ERR) then
-        write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
-        call wrf_debug ( WARN , TRIM(msg))
-        return
-      endif
+      !call adios2_set_selection(DH%MDVarIDs(NVar), 1, VStart, VCount, stat)
+      !call adios2_err(stat,Status)
+      !if(Status /= WRF_NO_ERR) then
+      !  write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
+      !  call wrf_debug ( WARN , TRIM(msg))
+      !  return
+      !endif
       call adios2_put(DH%adios2Engine, DH%MDVarIDs(NVar), Buffer, adios2_mode_sync, stat)
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
@@ -238,13 +237,13 @@
         return
       endif
 #else
-      call adios2_set_selection(DH%MDVarIDs(NVar), 1, VStart, VCount, stat)
-      call adios2_err(stat,Status)
-      if(Status /= WRF_NO_ERR) then
-        write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
-        call wrf_debug ( WARN , TRIM(msg))
-        return
-      endif
+      !call adios2_set_selection(DH%MDVarIDs(NVar), 1, VStart, VCount, stat)
+      !call adios2_err(stat,Status)
+      !if(Status /= WRF_NO_ERR) then
+      !  write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
+      !  call wrf_debug ( WARN , TRIM(msg))
+      !  return
+      !endif
       call adios2_put(DH%adios2Engine, DH%MDVarIDs(NVar), Data, adios2_mode_sync, stat)
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
