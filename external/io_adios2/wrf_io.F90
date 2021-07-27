@@ -1599,8 +1599,10 @@ subroutine ext_adios2_ioinit(SysDepInfo, Status)
   include 'wrf_status_codes.h'
   include 'mpif.h'
   CHARACTER*(*), INTENT(IN) :: SysDepInfo
-  integer                   :: stat
-  INTEGER ,INTENT(INOUT)    :: Status  
+  integer                   :: stat, rank, ierror
+  INTEGER ,INTENT(INOUT)    :: Status
+  logical                   :: file_exists=.FALSE.
+    
   WrfIOnotInitialized                             = .false.
   WrfDataHandles(1:WrfDataHandleMax)%Free         = .true.
   WrfDataHandles(1:WrfDataHandleMax)%TimesName    = 'Times'
@@ -1608,8 +1610,18 @@ subroutine ext_adios2_ioinit(SysDepInfo, Status)
   WrfDataHandles(1:WrfDataHandleMax)%FileStatus   = WRF_FILE_NOT_OPENED
   Status = WRF_NO_ERR
 
-  !ML get MPI comm from WRF, instead of MPI_COMM_WORLD
-  call adios2_init(adios, MPI_COMM_WORLD, adios2_debug_mode_on, stat)
+  !look for adios2 xml runtime configuration
+  call MPI_COMM_RANK(MPI_COMM_WORLD, rank, ierror)
+  if(rank == 0) then
+    INQUIRE(FILE="adios2.xml", EXIST=file_exists)
+  endif
+  
+  if(file_exists) then
+    call adios2_init(adios, 'adios2.xml', MPI_COMM_WORLD, adios2_debug_mode_on, stat)
+  else
+    call adios2_init(adios, MPI_COMM_WORLD, adios2_debug_mode_on, stat)
+  endif
+   
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_ioinit ',__FILE__,', line', __LINE__
