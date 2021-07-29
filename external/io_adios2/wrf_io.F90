@@ -1213,7 +1213,7 @@ subroutine ext_adios2_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataH
   return
 end subroutine ext_adios2_open_for_update
 
-SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataHandle,Status)
+SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotype,DataHandle,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
   use adios2
@@ -1223,6 +1223,7 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   integer              ,intent(in)  :: Comm
   integer              ,intent(in)  :: IOComm
   character*(*)        ,intent(in)  :: SysDepInfo
+  character*(*)        ,intent(in)  :: Iotype
   integer              ,intent(out) :: DataHandle
   integer              ,intent(out) :: Status
   type(wrf_data_handle),pointer     :: DH
@@ -1297,10 +1298,15 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,DataH
   
   !ADIOS2 declare i/o
   if(DH%first_operation) then
-    !TODO check for history vs restart
-   !call adios2_declare_io(DH%adios2IO, adios, "WRF_WRITER1", stat)
-   call adios2_declare_io(DH%adios2IO, adios, DH%FileName, stat)
-   DH%first_operation = .false.
+    call adios2_declare_io(DH%adios2IO, adios, DH%FileName, stat)
+    !call adios2_declare_io(DH%adios2IO, adios, Iotype, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    DH%first_operation = .false.
  end if
 
   DH%VarNames  (1:MaxVars) = NO_NAME
@@ -1355,6 +1361,62 @@ subroutine ext_adios2_open_for_write (DatasetName, Comm1, Comm2, &
   DataHandle = 0    ! dummy setting to quiet warning message
   return
 end subroutine ext_adios2_open_for_write
+
+SUBROUTINE ext_adios2_start_io_timestep(DataHandle, Status)
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
+  implicit none
+  include 'wrf_status_codes.h'
+  integer              ,intent(in)  :: DataHandle
+  integer              ,intent(out) :: Status
+  type(wrf_data_handle),pointer     :: DH
+  integer                           :: stat
+  call GetDH(DataHandle,DH,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'Warning Status = ',Status,' in ext_adios2_start_io_timestep ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg)) 
+    return
+  endif
+  if (DH%adios2Engine%valid .eqv. .true.) then
+    call adios2_begin_step(DH%adios2Engine, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error (',stat,') from adios2_begin_step in ext_adios2_start_io_timestep ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+  endif
+  return
+end SUBROUTINE ext_adios2_start_io_timestep
+
+SUBROUTINE ext_adios2_end_io_timestep(DataHandle, Status)
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
+  implicit none
+  include 'wrf_status_codes.h'
+  integer              ,intent(in)  :: DataHandle
+  integer              ,intent(out) :: Status
+  type(wrf_data_handle),pointer     :: DH
+  integer                           :: stat
+  call GetDH(DataHandle,DH,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'Warning Status = ',Status,' in ext_adios2_end_io_timestep ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg)) 
+    return
+  endif
+  if (DH%adios2Engine%valid .eqv. .true.) then
+    call adios2_end_step(DH%adios2Engine, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error (',stat,') from adios2_end_step in ext_adios2_end_io_timestep ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+  endif
+  return
+end SUBROUTINE ext_adios2_end_io_timestep
 
 SUBROUTINE ext_adios2_open_for_write_commit(DataHandle, Status)
   use wrf_data_adios2

@@ -1015,6 +1015,7 @@ endif
           switch .EQ. restart_only    ) THEN
       newswitch = switch
       p => grid%head_statevars%next
+      CALL wrf_start_io_timestep(fid, ierr)
       DO WHILE ( ASSOCIATED( p ) )
         IF ( p%ProcOrient .NE. 'X' .AND. p%ProcOrient .NE. 'Y' ) THEN   ! no I/O for xposed variables
           IF ( p%Ndim .EQ. 0 ) THEN
@@ -1527,6 +1528,7 @@ endif
         ENDIF
         p => p%next
       ENDDO
+      CALL wrf_end_io_timestep(fid, ierr)
     ELSE
        IF ( switch .EQ. boundary_only ) THEN
          CALL wrf_debug ( 300 , 'output_wrf: calling code in wrf_bdyout.inc' )

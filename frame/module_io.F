@@ -318,7 +318,7 @@ SUBROUTINE wrf_open_for_write_begin( FileName , grid, SysDepInfo, &
         ENDDO
         tstr = t1
         CALL ext_adios2_open_for_write_begin( FileName, Comm_compute, Comm_io, tstr, &
-                                            Hndl, Status)
+                                            Dataset, Hndl, Status)
 #endif
 #ifdef PIO
       CASE ( IO_PIO )
@@ -2055,6 +2055,34 @@ LOGICAL FUNCTION on_stream ( mask , switch )
   CALL get_mask( mask, switch-1, result )
   on_stream = ( result .NE. 0 )
 END FUNCTION on_stream
+
+SUBROUTINE wrf_start_io_timestep (DataHandle, Status)
+  IMPLICIT NONE
+  INTEGER, INTENT(IN)    :: DataHandle
+  INTEGER, INTENT(OUT)   :: Status
+  INTEGER                :: Hndl
+  INTEGER                :: io_form 
+  LOGICAL                :: for_out 
+#include "wrf_status_codes.h"
+  CALL get_handle ( Hndl, io_form , for_out, DataHandle )
+#ifdef ADIOS2
+  CALL ext_adios2_start_io_timestep(Hndl, Status)
+#endif
+end SUBROUTINE
+
+SUBROUTINE wrf_end_io_timestep (DataHandle, Status)
+  IMPLICIT NONE
+  INTEGER, INTENT(IN)    :: DataHandle
+  INTEGER, INTENT(OUT)   :: Status
+  INTEGER                :: Hndl
+  INTEGER                :: io_form 
+  LOGICAL                :: for_out 
+#include "wrf_status_codes.h"
+  CALL get_handle ( Hndl, io_form , for_out, DataHandle )
+#ifdef ADIOS2
+  CALL ext_adios2_end_io_timestep(Hndl, Status)
+#endif
+end SUBROUTINE
 
 END MODULE module_io
 
@@ -4341,4 +4369,3 @@ LOGICAL FUNCTION has_char( str, c )
   has_char = .FALSE.
   RETURN
 END FUNCTION has_char
-
