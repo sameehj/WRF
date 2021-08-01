@@ -2062,13 +2062,19 @@ SUBROUTINE wrf_start_io_timestep (DataHandle, Status)
   INTEGER, INTENT(OUT)   :: Status
   INTEGER                :: Hndl
   INTEGER                :: io_form 
-  LOGICAL                :: for_out 
+  LOGICAL                :: for_out
+  INTEGER, EXTERNAL      :: use_package
 #include "wrf_status_codes.h"
   CALL get_handle ( Hndl, io_form , for_out, DataHandle )
-#ifdef ADIOS2
-  CALL ext_adios2_start_io_timestep(Hndl, Status)
+  SELECT CASE ( use_package( io_form ) )
+#ifdef ADIOS2 
+    CASE ( IO_ADIOS2 )
+      CALL ext_adios2_start_io_timestep(Hndl, Status)
 #endif
-end SUBROUTINE
+    CASE DEFAULT
+      Status = 0
+  END SELECT
+END SUBROUTINE
 
 SUBROUTINE wrf_end_io_timestep (DataHandle, Status)
   IMPLICIT NONE
@@ -2076,13 +2082,19 @@ SUBROUTINE wrf_end_io_timestep (DataHandle, Status)
   INTEGER, INTENT(OUT)   :: Status
   INTEGER                :: Hndl
   INTEGER                :: io_form 
-  LOGICAL                :: for_out 
+  LOGICAL                :: for_out
+  INTEGER, EXTERNAL      :: use_package
 #include "wrf_status_codes.h"
   CALL get_handle ( Hndl, io_form , for_out, DataHandle )
-#ifdef ADIOS2
-  CALL ext_adios2_end_io_timestep(Hndl, Status)
+  SELECT CASE ( use_package( io_form ) )
+#ifdef ADIOS2 
+    CASE ( IO_ADIOS2 )
+      CALL ext_adios2_end_io_timestep(Hndl, Status)
 #endif
-end SUBROUTINE
+    CASE DEFAULT
+      Status = 0
+  END SELECT
+END SUBROUTINE
 
 END MODULE module_io
 
