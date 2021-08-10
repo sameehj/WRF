@@ -1673,10 +1673,10 @@ subroutine ext_adios2_ioinit(SysDepInfo, Status)
   Status = WRF_NO_ERR
 
   !look for adios2 xml runtime configuration
-  call MPI_COMM_RANK(MPI_COMM_WORLD, rank, ierror)
-  if(rank == 0) then
-    INQUIRE(FILE="adios2.xml", EXIST=file_exists)
-  endif
+  !call MPI_COMM_RANK(MPI_COMM_WORLD, rank, ierror)
+  !if(rank == 0) then
+  INQUIRE(FILE="adios2.xml", EXIST=file_exists)
+  !endif
   
   if(file_exists) then
     call adios2_init(adios, 'adios2.xml', MPI_COMM_WORLD, adios2_debug_mode_on, stat)
