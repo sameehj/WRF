@@ -19,8 +19,8 @@ ln -sf $NETCDF_C/lib/*  $NETCDF/lib/
 # load dependencies
 spack load openmpi
 spack load parallel-netcdf ^openmpi
-spack load netcdf-c ^openmpi@master ^hdf5 +fortran
-spack load netcdf-fortran ^openmpi@master ^hdf5 +fortran
+spack load netcdf-c ^openmpi ^hdf5 +fortran
+spack load netcdf-fortran ^openmpi ^hdf5 +fortran
 spack load jasper
 spack load libpng
 spack load adios2 +python ^python +tkinter
