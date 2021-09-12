@@ -1531,8 +1531,10 @@ endif
       CALL wrf_end_io_timestep(fid, ierr)
     ELSE
        IF ( switch .EQ. boundary_only ) THEN
+         CALL wrf_start_io_timestep(fid, ierr)
          CALL wrf_debug ( 300 , 'output_wrf: calling code in wrf_bdyout.inc' )
          CALL wrf_bdyout( fid , grid , config_flags, switch, dryrun,  ierr )
+         CALL wrf_end_io_timestep(fid, ierr)
        ENDIF
     ENDIF
 

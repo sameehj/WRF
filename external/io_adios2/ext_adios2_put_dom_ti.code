@@ -105,7 +105,11 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
       endif
 #else
       ! throwaway attribute id (need to check if that is alright)
+#ifdef CHAR_TYPE
+      call adios2_define_attribute(AttributeID, DH%adios2IO, Element, Data, stat)
+#else
       call adios2_define_attribute(AttributeID, DH%adios2IO, Element, Data, Count, stat)
+#endif
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
         write(msg,*) 'adios2 error in ext_adios2_put_dom_ti ',__FILE__,', line', __LINE__
@@ -149,7 +153,11 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
         return
       endif
 #else
+#ifdef CHAR_TYPE
+      call adios2_define_attribute(AttributeID, DH%adios2IO, Element, Data, stat)
+#else
       call adios2_define_attribute(AttributeID, DH%adios2IO, Element, Data, Count, stat)
+#endif
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
         write(msg,*) 'adios2 error in ext_adios2_put_dom_ti ',__FILE__,', line', __LINE__

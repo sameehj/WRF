@@ -34,11 +34,11 @@
 !*
 !*----------------------------------------------------------------------------
 
-  use wrf_data_pnc
-  use ext_pnc_support_routines
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
   implicit none
   include 'wrf_status_codes.h'
-#  include "pnetcdf.inc"
   integer               ,intent(in)     :: DataHandle
   character*(*)         ,intent(in)     :: Element
   TYPE_DATA
@@ -47,9 +47,9 @@
   integer               ,intent(out)    :: Status
   type(wrf_data_handle) ,pointer        :: DH
   integer                               :: XType
-  integer(KIND=MPI_OFFSET_KIND)         :: Len_okind
   integer                               :: Len
   integer                               :: stat
+  type(adios2_attribute)                :: attribute
   TYPE_BUFFER
 
   call GetDH(DataHandle,DH,Status)
@@ -60,7 +60,7 @@
     return
   endif
 ! Do nothing unless it is time to read time-independent domain metadata.  
-IF ( ncd_ok_to_get_dom_ti( DataHandle ) ) THEN
+IF ( adios2_ok_to_get_dom_ti( DataHandle ) ) THEN
   if(DH%FileStatus == WRF_FILE_NOT_OPENED) then
     Status = WRF_WARN_FILE_NOT_OPENED   
     write(msg,*) &
@@ -77,40 +77,16 @@ IF ( ncd_ok_to_get_dom_ti( DataHandle ) ) THEN
 'Warning READ WRITE ONLY FILE in ',__FILE__,' ',ROUTINE_TYPE,', line', __LINE__ 
     call wrf_debug ( WARN , msg)
   elseif(DH%FileStatus == WRF_FILE_OPENED_FOR_READ) then
-    stat = NFMPI_INQ_ATT(DH%NCID,NF_GLOBAL,Element, XType, Len_okind)
-    call netcdf_err(stat,Status)
-    if(Status /= WRF_NO_ERR) then
-      write(msg,*) &
-'NetCDF error in ',__FILE__,' ',ROUTINE_TYPE,', line', __LINE__,' Element ',trim(Element)
-      call wrf_debug ( WARN , msg)
-      return
-    endif
-    Len = Len_okind
-    if ( NF_TYPE == NF_DOUBLE .OR. NF_TYPE == NF_FLOAT ) then
-      if( .NOT. ( XType==NF_FLOAT .OR. XType==NF_DOUBLE) ) then
-        Status = WRF_WARN_TYPE_MISMATCH   
-        write(msg,*) &
-'Warning TYPE MISMATCH in ',__FILE__,' ',ROUTINE_TYPE,', line', __LINE__,' Element ', trim(Element)
-        call wrf_debug ( WARN , msg)
+    call adios2_inquire_attribute(attribute, DH%adios2IO, Element, stat)
+    call adios2_err(stat,Status)
+      if(Status /= WRF_NO_ERR) then
+        write(msg,*) 'adios2 error in ext_adios2_get_dom_ti',__FILE__,', line', __LINE__
+        call wrf_debug ( WARN , TRIM(msg))
         return
-      endif
-    else
-      if( XType/=NF_TYPE) then
-        Status = WRF_WARN_TYPE_MISMATCH  
-        write(msg,*) &
-'Warning TYPE MISMATCH in ',__FILE__,' ',ROUTINE_TYPE,', line', __LINE__,' Element ', trim(Element)
-        call wrf_debug ( WARN , msg)
-        return
-      endif
     endif
-    if(Len<=0) then
-      Status = WRF_WARN_LENGTH_LESS_THAN_1  
-      write(msg,*) &
-'Warning LENGTH < 1 in ',__FILE__,' ',ROUTINE_TYPE,', line', __LINE__,' Element ', trim(Element)
-      call wrf_debug ( WARN , msg)
-      return
-    endif
-#ifndef CHAR_TYPE 
+    !stat = NFMPI_INQ_ATT(DH%NCID,NF_GLOBAL,Element, XType, Len_okind)
+    Len = attribute%length
+#ifndef CHAR_TYPE
     allocate(Buffer(Len), STAT=stat)
     if(stat/= 0) then
       Status = WRF_ERR_FATAL_ALLOCATION_ERROR  
@@ -119,17 +95,18 @@ IF ( ncd_ok_to_get_dom_ti( DataHandle ) ) THEN
       call wrf_debug ( FATAL , msg)
       return
     endif
-    stat = NF_ROUTINE (DH%NCID,NF_GLOBAL,Element,Buffer)
+    call adios2_attribute_data(Buffer, attribute, stat)
+    !stat = NF_ROUTINE (DH%NCID,NF_GLOBAL,Element,Buffer)
 #else
     Data = ''
-    stat = NFMPI_GET_ATT_TEXT(DH%NCID,NF_GLOBAL,Element,Data)
+    call adios2_attribute_data(Data, attribute, stat)
+    !stat = NFMPI_GET_ATT_TEXT(DH%NCID,NF_GLOBAL,Element,Data)
 #endif
-    call netcdf_err(stat,Status)
-    if(Status /= WRF_NO_ERR) then
-      write(msg,*) &
-'NetCDF error in ',__FILE__,' ',ROUTINE_TYPE,', line', __LINE__,' Element ',Element
-      call wrf_debug ( WARN , msg)
-      return
+    call adios2_err(stat,Status)
+      if(Status /= WRF_NO_ERR) then
+        write(msg,*) 'adios2 error in ext_adios2_get_dom_ti',__FILE__,', line', __LINE__
+        call wrf_debug ( WARN , TRIM(msg))
+        return
     endif
 #ifndef CHAR_TYPE 
     COPY
