@@ -116,7 +116,7 @@
     call wrf_debug ( WARN , msg)
   elseif(DH%FileStatus == WRF_FILE_OPENED_FOR_READ) then
     !stat = NFMPI_INQ_VARID(NCID,Name,VarID)
-    call adios2_inquire_variable(VarID, DH%adios2IO, FName, stat)
+    call adios2_inquire_variable(VarID, DH%adios2IO, Name, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_get_var_td ',__FILE__,', line', __LINE__
