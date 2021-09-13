@@ -3215,148 +3215,156 @@ end subroutine ext_adios2_end_of_frame
 ! NOTE:  For scalar variables NDim is set to zero and DomainStart and 
 ! NOTE:  DomainEnd are left unmodified.  
 subroutine ext_adios2_get_var_info(DataHandle,Name,NDim,MemoryOrder,Stagger,DomainStart,DomainEnd,WrfType,Status)
-!   use wrf_data_adios2
-!   use ext_adios2_support_routines
-!   implicit none
-!   use adios2
-!   include 'wrf_status_codes.h'
-!   integer               ,intent(in)     :: DataHandle
-!   character*(*)         ,intent(in)     :: Name
-!   integer               ,intent(out)    :: NDim
-!   character*(*)         ,intent(out)    :: MemoryOrder
-!   character*(*)                         :: Stagger ! Dummy for now
-!   integer ,dimension(*) ,intent(out)    :: DomainStart, DomainEnd
-!   integer               ,intent(out)    :: WrfType
-!   integer               ,intent(out)    :: Status
-!   type(wrf_data_handle) ,pointer        :: DH
-!   integer                               :: VarID
-!   integer ,dimension(NVarDims)          :: VDimIDs
-!   integer                               :: j
-!   integer                               :: stat
-!   integer                               :: XType
+  use wrf_data_adios2
+  use ext_adios2_support_routines
+  use adios2
+  implicit none
+  include 'wrf_status_codes.h'
+  integer               ,intent(in)     :: DataHandle
+  character*(*)         ,intent(in)     :: Name
+  integer               ,intent(out)    :: NDim
+  character*(*)         ,intent(out)    :: MemoryOrder
+  character*(*)                         :: Stagger ! Dummy for now
+  integer ,dimension(*) ,intent(out)    :: DomainStart, DomainEnd
+  integer               ,intent(out)    :: WrfType
+  integer               ,intent(out)    :: Status
+  type(wrf_data_handle) ,pointer        :: DH
+  type(adios2_variable)                 :: VarID
+  integer ,dimension(NVarDims)          :: VDimIDs
+  integer                               :: j
+  integer                               :: stat
+  integer                               :: XType
+  type(adios2_attribute)                :: attribute
+  integer(kind=8), dimension(:), allocatable :: shape_dims
+  integer                               :: ndims_adios2
 
-!   call GetDH(DataHandle,DH,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'Warning Status = ',Status,' in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   if(DH%FileStatus == WRF_FILE_NOT_OPENED) then
-!     Status = WRF_WARN_FILE_NOT_OPENED
-!     write(msg,*) 'Warning FILE NOT OPENED in ',__FILE__,', line', __LINE__ 
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   elseif(DH%FileStatus == WRF_FILE_OPENED_NOT_COMMITTED) then
-!     Status = WRF_WARN_DRYRUN_READ
-!     write(msg,*) 'Warning DRYRUN READ in ',__FILE__,', line', __LINE__ 
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   elseif(DH%FileStatus == WRF_FILE_OPENED_FOR_WRITE) then
-!     Status = WRF_WARN_READ_WONLY_FILE
-!     write(msg,*) 'Warning READ WRITE ONLY FILE in ',__FILE__,', line', __LINE__ 
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   elseif(DH%FileStatus == WRF_FILE_OPENED_FOR_READ .OR. DH%FileStatus == WRF_FILE_OPENED_FOR_UPDATE) then
-!     stat = NFMPI_INQ_VARID(DH%NCID,Name,VarID)
-!     call adios2_err(stat,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     endif
-!     stat = NFMPI_INQ_VARTYPE(DH%NCID,VarID,XType)
-!     call adios2_err(stat,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     endif
-!     stat = NFMPI_GET_ATT_INT(DH%NCID,VarID,'FieldType',WrfType)
-!     call adios2_err(stat,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     endif
-!     select case (XType)
-!       case (NF_BYTE)
-!         Status = WRF_WARN_BAD_DATA_TYPE
-!         write(msg,*) 'Warning BYTE IS BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
-!         call wrf_debug ( WARN , TRIM(msg))
-!         return
-!       case (NF_CHAR)
-!         Status = WRF_WARN_BAD_DATA_TYPE
-!         write(msg,*) 'Warning CHAR IS BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
-!         call wrf_debug ( WARN , TRIM(msg))
-!         return
-!       case (NF_SHORT)
-!         Status = WRF_WARN_BAD_DATA_TYPE
-!         write(msg,*) 'Warning SHORT IS BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
-!         call wrf_debug ( WARN , TRIM(msg))
-!         return
-!       case (NF_INT)
-!         if(WrfType /= WRF_INTEGER .and. WrfType /= WRF_LOGICAL) then
-!           Status = WRF_WARN_BAD_DATA_TYPE
-!           write(msg,*) 'Warning BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
-!           call wrf_debug ( WARN , TRIM(msg))
-!           return
-!         endif
-!       case (NF_FLOAT)
-!         if(WrfType /= WRF_REAL) then
-!           Status = WRF_WARN_BAD_DATA_TYPE
-!           write(msg,*) 'Warning BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
-!           call wrf_debug ( WARN , TRIM(msg))
-!           return
-!         endif
-!       case (NF_DOUBLE)
-!         if(WrfType /= WRF_DOUBLE) then
-!           Status = WRF_WARN_BAD_DATA_TYPE
-!           write(msg,*) 'Warning BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
-!           call wrf_debug ( WARN , TRIM(msg))
-!           return
-!         endif
-!       case default
-!         Status = WRF_WARN_DATA_TYPE_NOT_FOUND
-!         write(msg,*) 'Warning DATA TYPE NOT FOUND in ',__FILE__,', line', __LINE__ 
-!         call wrf_debug ( WARN , TRIM(msg))
-!         return
-!     end select
+  call GetDH(DataHandle,DH,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'Warning Status = ',Status,' in ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
+  if(DH%FileStatus == WRF_FILE_NOT_OPENED) then
+    Status = WRF_WARN_FILE_NOT_OPENED
+    write(msg,*) 'Warning FILE NOT OPENED in ',__FILE__,', line', __LINE__ 
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  elseif(DH%FileStatus == WRF_FILE_OPENED_NOT_COMMITTED) then
+    Status = WRF_WARN_DRYRUN_READ
+    write(msg,*) 'Warning DRYRUN READ in ',__FILE__,', line', __LINE__ 
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  elseif(DH%FileStatus == WRF_FILE_OPENED_FOR_WRITE) then
+    Status = WRF_WARN_READ_WONLY_FILE
+    write(msg,*) 'Warning READ WRITE ONLY FILE in ',__FILE__,', line', __LINE__ 
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  elseif(DH%FileStatus == WRF_FILE_OPENED_FOR_READ .OR. DH%FileStatus == WRF_FILE_OPENED_FOR_UPDATE) then
+    call adios2_inquire_variable(VarID, DH%adios2IO, Name, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    !stat = NFMPI_INQ_VARID(DH%NCID,Name,VarID)
+    XType = VarID%type
+    !stat = NFMPI_INQ_VARTYPE(DH%NCID,VarID,XType)
 
-!     stat = NFMPI_GET_ATT_TEXT(DH%NCID,VarID,'MemoryOrder',MemoryOrder)
-!     call adios2_err(stat,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     endif
-!     call GetDim(MemoryOrder,NDim,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'Warning BAD MEMORY ORDER ',TRIM(MemoryOrder),' in ',__FILE__,', line', __LINE__
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     endif
-!     stat = NFMPI_INQ_VARDIMID(DH%NCID,VarID,VDimIDs)
-!     call adios2_err(stat,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     endif
-!     do j = 1, NDim
-!       DomainStart(j) = 1
-!       stat = NFMPI_INQ_DIMLEN(DH%NCID,VDimIDs(j),DomainEnd(j))
-!       call adios2_err(stat,Status)
-!       if(Status /= WRF_NO_ERR) then
-!         write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
-!         call wrf_debug ( WARN , TRIM(msg))
-!         return
-!       endif
-!     enddo
-!   else
-!     Status = WRF_ERR_FATAL_BAD_FILE_STATUS
-!     write(msg,*) 'Fatal error BAD FILE STATUS in ',__FILE__,', line', __LINE__ 
-!     call wrf_debug ( FATAL , msg)
-!   endif
+    call adios2_inquire_variable_attribute(attribute, DH%adios2IO, 'FieldType', Name, '/', stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    call adios2_attribute_data(WrfType, attribute, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    !stat = NFMPI_GET_ATT_INT(DH%NCID,VarID,'FieldType',WrfType)
+    select case (XType)
+      case (adios2_type_character)
+        Status = WRF_WARN_BAD_DATA_TYPE
+        write(msg,*) 'Warning CHAR IS BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
+        call wrf_debug ( WARN , TRIM(msg))
+        return
+      case (adios2_type_integer4)
+        if(WrfType /= WRF_INTEGER .and. WrfType /= WRF_LOGICAL) then
+          Status = WRF_WARN_BAD_DATA_TYPE
+          write(msg,*) 'Warning BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
+          call wrf_debug ( WARN , TRIM(msg))
+          return
+        endif
+      case (adios2_type_real)
+        if(WrfType /= WRF_REAL) then
+          Status = WRF_WARN_BAD_DATA_TYPE
+          write(msg,*) 'Warning BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
+          call wrf_debug ( WARN , TRIM(msg))
+          return
+        endif
+      case (adios2_type_dp)
+        if(WrfType /= WRF_DOUBLE) then
+          Status = WRF_WARN_BAD_DATA_TYPE
+          write(msg,*) 'Warning BAD DATA TYPE in ',__FILE__,', line', __LINE__ 
+          call wrf_debug ( WARN , TRIM(msg))
+          return
+        endif
+      case default
+        Status = WRF_WARN_DATA_TYPE_NOT_FOUND
+        write(msg,*) 'Warning DATA TYPE NOT FOUND in ',__FILE__,', line', __LINE__ 
+        call wrf_debug ( WARN , TRIM(msg))
+        return
+    end select
+
+    call adios2_inquire_variable_attribute(attribute, DH%adios2IO, 'MemoryOrder', Name, '/', stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    call adios2_attribute_data(MemoryOrder, attribute, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    !stat = NFMPI_GET_ATT_TEXT(DH%NCID,VarID,'MemoryOrder',MemoryOrder)
+    call GetDim(MemoryOrder,NDim,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'Warning BAD MEMORY ORDER ',TRIM(MemoryOrder),' in ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    !stat = NFMPI_INQ_VARDIMID(DH%NCID,VarID,VDimIDs)
+    call adios2_variable_shape(shape_dims, ndims_adios2, VarID, stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    DomainEnd(1:NDim) = shape_dims(1:NDim)
+    ! do j = 1, NDim
+    !   DomainStart(j) = 1
+    !   stat = NFMPI_INQ_DIMLEN(DH%NCID,VDimIDs(j),DomainEnd(j))
+    !   call adios2_err(stat,Status)
+    !   if(Status /= WRF_NO_ERR) then
+    !     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__ 
+    !     call wrf_debug ( WARN , TRIM(msg))
+    !     return
+    !   endif
+    ! enddo
+  else
+    Status = WRF_ERR_FATAL_BAD_FILE_STATUS
+    write(msg,*) 'Fatal error BAD FILE STATUS in ',__FILE__,', line', __LINE__ 
+    call wrf_debug ( FATAL , msg)
+  endif
   return
 end subroutine ext_adios2_get_var_info
 
