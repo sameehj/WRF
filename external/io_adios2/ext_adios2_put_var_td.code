@@ -60,9 +60,9 @@
   integer                               :: TimeIndex
   integer                               :: NCID
   integer(kind=8)      ,dimension(1)    :: zero
-  integer(kind=8)                       :: shape_dims(1) 
-
-
+  integer(kind=8)                       :: shape_dims(1)
+  character(80),dimension(2)            :: DimNamesOut
+  type(adios2_attribute)                :: AttributeID
 
   VarName = Var
   call DateCheck(DateStr,Status)
@@ -143,12 +143,24 @@
     DH%MDVarDimLens(NVar) = LENGTH
     !VDims(1) = DH%DimIDs(i)
     !VDims(2) = DH%DimUnlimID
+    DimNamesOut(1) = DH%DimNames(i)
+    DimNamesOut(2) = DH%DimUnlimName
+
     zero(1) = 0
     shape_dims(1) = LENGTH
     !
     call adios2_define_variable(DH%MDVarIDs(NVar), DH%adios2IO, Name, ADIOS2TYPE, &
                                 stat)
     !stat = NFMPI_DEF_VAR(NCID,Name,NF_TYPE,2,VDims,DH%MDVarIDs(NVar))
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+    ! add attribute of dimension names (for reconstructing netcdf file)
+    call adios2_define_attribute(AttributeID,DH%adios2IO, 'Dims', &
+              DimNamesOut, 2, DH%MDVarIDs(NVar)%name, '/', stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__

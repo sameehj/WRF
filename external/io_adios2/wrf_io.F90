@@ -2379,7 +2379,8 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   type(adios2_attribute)                       :: AttributeID
   integer      ,dimension(NVarDims)            :: Length_global, Length_native
   integer      ,dimension(NVarDims)            :: Length
-  type(adios2_attribute) ,dimension(NVarDims)  :: VDimIDs
+  !type(adios2_attribute) ,dimension(NVarDims)  :: VDimIDs
+  integer, dimension(NVarDims)                 :: VDimIDs
   character(80),dimension(NVarDims)            :: RODimNames
   integer      ,dimension(NVarDims)            :: StoredStart
   integer(kind=8)      ,dimension(NVarDims)    :: zero
@@ -2398,6 +2399,9 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   logical                                      :: NotFound
   ! Local, possibly adjusted, copies of MemoryStart and MemoryEnd
   integer       ,dimension(NVarDims)           :: lMemoryStart, lMemoryEnd
+  character(80),dimension(NVarDims+1)          :: DimNamesOut
+
+  
   MemoryOrder = trim(adjustl(MemoryOrdIn))
   NullName=char(0)
   call GetDim(MemoryOrder,NDim,Status)
@@ -2527,7 +2531,7 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
           enddo
         endif
       endif
-      VDimIDs(j) = DH%DimIDs(i)
+      VDimIDs(j) = i
       DH%VarDimLens(j,NVar) = Length_global(j)
     enddo
     !VDimIDs(NDim+1) = DH%DimUnlimID ! ML adds time dimension to every new variable (not needed for adios?)
@@ -2557,7 +2561,6 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
                                1, shape_dims, zero, zero, &
                                adios2_variable_dims, stat)
     else
-    !todo add dims as attributes to variable?
       call adios2_define_variable(VarID, DH%adios2IO, VarName, XType, &
                                NDim, shape_dims, zero, zero, &
                               adios2_variable_dims, stat)
@@ -2570,7 +2573,19 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
       return
     endif
     DH%VarIDs(NVar) = VarID
-    ! ML AtributeID is used as a throwaway variable, does not seem like it is required
+
+    ! add attribute of dimension names (for reconstructing netcdf file)
+    DimNamesOut(1:NDim) = RODimNames(1:NDim)
+    DimNamesOut(NDim+1) = DH%DimUnlimName
+    call adios2_define_attribute(AttributeID,DH%adios2IO, 'Dims', &
+              DimNamesOut, NDim+1, VarID%name, '/', stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'ext_adios2_write_field: adios2 error in ',__FILE__,', line', __LINE__ 
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
+
     call adios2_define_attribute(AttributeID,DH%adios2IO, 'FieldType', &
               FieldType, VarID%name, stat)
     !stat = NFMPI_PUT_ATT_INT(NCID,VarID,'FieldType',NF_INT,i2offset(1),FieldType)

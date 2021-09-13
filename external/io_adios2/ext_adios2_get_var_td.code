@@ -119,7 +119,7 @@
     call adios2_inquire_variable(VarID, DH%adios2IO, FName, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'adios2 error in ext_adios2_open_for_read_begin ',__FILE__,', line', __LINE__
+      write(msg,*) 'adios2 error in ext_adios2_get_var_td ',__FILE__,', line', __LINE__
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
@@ -159,7 +159,7 @@
     call adios2_variable_shape(shape_dims, ndims_adios2, VarID, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'adios2 error in ext_adios2_open_for_read_begin ',__FILE__,', line', __LINE__
+      write(msg,*) 'adios2 error in ext_adios2_get_var_td ',__FILE__,', line', __LINE__
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
@@ -176,7 +176,7 @@
     call adios2_set_step_selection(VarID, TimeIndex_int8 -1_8, 1_8, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'adios2 error in ext_adios2_open_for_read_begin ',__FILE__,', line', __LINE__
+      write(msg,*) 'adios2 error in ext_adios2_get_var_td ',__FILE__,', line', __LINE__
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
@@ -202,7 +202,7 @@
 #endif
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'adios2 error in ext_adios2_open_for_read_begin ',__FILE__,', line', __LINE__
+      write(msg,*) 'adios2 error in ext_adios2_get_var_td ',__FILE__,', line', __LINE__
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
