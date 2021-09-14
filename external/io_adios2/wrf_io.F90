@@ -974,7 +974,8 @@ subroutine ext_adios2_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, D
   integer                                     :: i
   integer(kind=8)                             :: timestep
   integer(kind=8)                             :: nsteps
-  character(len=:), dimension(:), allocatable :: varnamelist
+  character(len=4096), dimension(:), allocatable :: varnamelist
+  type(adios2_namestruct) :: namestruct
   character(len=256)                          :: Name
   !character (DateStrLen), dimension(MaxTimes) :: buffer
 
@@ -1063,8 +1064,7 @@ subroutine ext_adios2_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, D
   !  call wrf_debug ( WARN , TRIM(msg))
   !  return
   !endif
-  
-  call adios2_available_variables(DH%adios2IO, TotalNumVars, varnamelist, stat)
+  call adios2_available_variables(DH%adios2IO, namestruct, stat)
   !stat = NFMPI_INQ_NVARS(DH%NCID,TotalNumVars)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
@@ -1072,6 +1072,15 @@ subroutine ext_adios2_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, D
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
+  allocate(varnamelist(namestruct%count))
+  call adios2_retrieve_names(namestruct, varnamelist, stat)
+  call adios2_err(stat,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
+  TotalNumVars = namestruct%count
   NumVars = 0
   do i=1,TotalNumVars
     Name = varnamelist(i)
@@ -1087,7 +1096,6 @@ subroutine ext_adios2_open_for_read_begin( FileName, Comm, IOComm, SysDepInfo, D
       DH%VarIDs(NumVars)   = VarID
     endif      
   enddo
-
   deallocate(varnamelist)
   DH%NumVars         = NumVars
   DH%NumberTimes     = nsteps
@@ -1102,135 +1110,136 @@ end subroutine ext_adios2_open_for_read_begin
 
 ! ML TODO Combination of write_begin and read_begin (?). Maybe maybe with adios2_mode_append at open
 subroutine ext_adios2_open_for_update( FileName, Comm, IOComm, SysDepInfo, DataHandle, Status)
-!   use wrf_data_adios2
-!   use ext_adios2_support_routines
-!   implicit none
-!   include 'wrf_status_codes.h'
-!   use adios2
-!   character*(*)         ,intent(IN)      :: FileName
-!   integer               ,intent(IN)      :: Comm
-!   integer               ,intent(IN)      :: IOComm
-!   character*(*)         ,intent(in)      :: SysDepInfo
-!   integer               ,intent(out)     :: DataHandle
-!   integer               ,intent(out)     :: Status
-!   type(wrf_data_handle) ,pointer         :: DH
-!   integer                                :: XType
-!   integer                                :: stat
-!   integer               ,allocatable     :: Buffer(:)
-!   integer                                :: VarID
-!   integer                                :: StoredDim
-!   integer                                :: NAtts
-!   integer                                :: DimIDs(2)
-!   integer                                :: VStart(2)
-!   integer                                :: VLen(2)
-!   integer                                :: TotalNumVars
-!   integer                                :: NumVars
-!   integer                                :: i
-!   character (NF_MAX_NAME)                :: Name
+  ! use wrf_data_adios2
+  ! use ext_adios2_support_routines
+  ! use adios2
+  ! implicit none
+  ! include 'wrf_status_codes.h'
+  ! character*(*)         ,intent(IN)      :: FileName
+  ! integer               ,intent(IN)      :: Comm
+  ! integer               ,intent(IN)      :: IOComm
+  ! character*(*)         ,intent(in)      :: SysDepInfo
+  ! integer               ,intent(out)     :: DataHandle
+  ! integer               ,intent(out)     :: Status
+  ! type(wrf_data_handle) ,pointer         :: DH
+  ! integer                                :: XType
+  ! integer                                :: stat
+  ! integer               ,allocatable     :: Buffer(:)
+  ! type(adios2_variable)                  :: VarID
+  ! integer                                :: StoredDim
+  ! integer                                :: NAtts
+  ! integer                                :: DimIDs(2)
+  ! integer                                :: VStart(2)
+  ! integer                                :: VLen(2)
+  ! integer                                :: TotalNumVars
+  ! integer                                :: NumVars
+  ! integer                                :: i
+  ! character (NF_MAX_NAME)                :: Name
 
-!   if(WrfIOnotInitialized) then
-!     Status = WRF_IO_NOT_INITIALIZED 
-!     write(msg,*) 'ext_adios2_ioinit was not called ',__FILE__,', line', __LINE__
-!     call wrf_debug ( FATAL , msg)
-!     return
-!   endif
-!   call allocHandle(DataHandle,DH,Comm,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__ 
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   stat = NFMPI_OPEN(Comm, FileName, NF_WRITE, MPI_INFO_NULL, DH%NCID)
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   stat = NFMPI_INQ_VARID(DH%NCID,DH%TimesName,VarID)
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   stat = NFMPI_INQ_VAR(DH%NCID,VarID,DH%TimesName, XType, StoredDim, DimIDs, NAtts)
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   if(XType/=NF_CHAR) then
-!     Status = WRF_WARN_TYPE_MISMATCH
-!     write(msg,*) 'Warning TYPE MISMATCH in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   stat = NFMPI_INQ_DIMLEN(DH%NCID,DimIDs(1),VLen(1))  
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   if(VLen(1) /= DateStrLen) then
-!     Status = WRF_WARN_DATESTR_BAD_LENGTH
-!     write(msg,*) 'Warning DATESTR BAD LENGTH in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   stat = NFMPI_INQ_DIMLEN(DH%NCID,DimIDs(2),VLen(2))
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   if(VLen(2) > MaxTimes) then
-!     Status = WRF_ERR_FATAL_TOO_MANY_TIMES
-!     write(msg,*) 'Fatal TOO MANY TIME VALUES in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( FATAL , TRIM(msg))
-!     return
-!   endif
-!   VStart(1) = 1
-!   VStart(2) = 1
-!   stat = NFMPI_GET_VARA_TEXT_ALL(DH%NCID,VarID,VStart,VLen,DH%Times)
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   stat = NFMPI_INQ_NVARS(DH%NCID,TotalNumVars)
-!   call adios2_err(stat,Status)
-!   if(Status /= WRF_NO_ERR) then
-!     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!     call wrf_debug ( WARN , TRIM(msg))
-!     return
-!   endif
-!   NumVars = 0
-!   do i=1,TotalNumVars
-!     stat = NFMPI_INQ_VARNAME(DH%NCID,i,Name)
-!     call adios2_err(stat,Status)
-!     if(Status /= WRF_NO_ERR) then
-!       write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
-!       call wrf_debug ( WARN , TRIM(msg))
-!       return
-!     elseif(Name(1:5) /= 'md___' .and. Name /= DH%TimesName) then
-!       NumVars              = NumVars+1
-!       DH%VarNames(NumVars) = Name
-!       DH%VarIDs(NumVars)   = i
-!     endif      
-!   enddo
-!   DH%NumVars         = NumVars
-!   DH%NumberTimes     = VLen(2)
-!   DH%FileStatus      = WRF_FILE_OPENED_FOR_UPDATE
-!   DH%FileName        = FileName
-!   DH%CurrentVariable = 0
-!   DH%CurrentTime     = 0
-!   DH%TimesVarID      = VarID
-!   DH%TimeIndex       = 0
+  ! if(WrfIOnotInitialized) then
+  !   Status = WRF_IO_NOT_INITIALIZED 
+  !   write(msg,*) 'ext_adios2_ioinit was not called ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( FATAL , msg)
+  !   return
+  ! endif
+  ! call allocHandle(DataHandle,DH,Comm,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'Fatal ALLOCATION ERROR in ',__FILE__,', line', __LINE__ 
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! call adios2_declare_io(DH%adios2IO, adios, FileName, stat)
+  ! !stat = NFMPI_OPEN(Comm, FileName, NF_WRITE, MPI_INFO_NULL, DH%NCID)
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! stat = NFMPI_INQ_VARID(DH%NCID,DH%TimesName,VarID)
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! stat = NFMPI_INQ_VAR(DH%NCID,VarID,DH%TimesName, XType, StoredDim, DimIDs, NAtts)
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! if(XType/=NF_CHAR) then
+  !   Status = WRF_WARN_TYPE_MISMATCH
+  !   write(msg,*) 'Warning TYPE MISMATCH in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! stat = NFMPI_INQ_DIMLEN(DH%NCID,DimIDs(1),VLen(1))  
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! if(VLen(1) /= DateStrLen) then
+  !   Status = WRF_WARN_DATESTR_BAD_LENGTH
+  !   write(msg,*) 'Warning DATESTR BAD LENGTH in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! stat = NFMPI_INQ_DIMLEN(DH%NCID,DimIDs(2),VLen(2))
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! if(VLen(2) > MaxTimes) then
+  !   Status = WRF_ERR_FATAL_TOO_MANY_TIMES
+  !   write(msg,*) 'Fatal TOO MANY TIME VALUES in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( FATAL , TRIM(msg))
+  !   return
+  ! endif
+  ! VStart(1) = 1
+  ! VStart(2) = 1
+  ! stat = NFMPI_GET_VARA_TEXT_ALL(DH%NCID,VarID,VStart,VLen,DH%Times)
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! stat = NFMPI_INQ_NVARS(DH%NCID,TotalNumVars)
+  ! call adios2_err(stat,Status)
+  ! if(Status /= WRF_NO_ERR) then
+  !   write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !   call wrf_debug ( WARN , TRIM(msg))
+  !   return
+  ! endif
+  ! NumVars = 0
+  ! do i=1,TotalNumVars
+  !   stat = NFMPI_INQ_VARNAME(DH%NCID,i,Name)
+  !   call adios2_err(stat,Status)
+  !   if(Status /= WRF_NO_ERR) then
+  !     write(msg,*) 'adios2 error in ',__FILE__,', line', __LINE__
+  !     call wrf_debug ( WARN , TRIM(msg))
+  !     return
+  !   elseif(Name(1:5) /= 'md___' .and. Name /= DH%TimesName) then
+  !     NumVars              = NumVars+1
+  !     DH%VarNames(NumVars) = Name
+  !     DH%VarIDs(NumVars)   = i
+  !   endif      
+  ! enddo
+  ! DH%NumVars         = NumVars
+  ! DH%NumberTimes     = VLen(2)
+  ! DH%FileStatus      = WRF_FILE_OPENED_FOR_UPDATE
+  ! DH%FileName        = FileName
+  ! DH%CurrentVariable = 0
+  ! DH%CurrentTime     = 0
+  ! DH%TimesVarID      = VarID
+  ! DH%TimeIndex       = 0
   return
 end subroutine ext_adios2_open_for_update
 
