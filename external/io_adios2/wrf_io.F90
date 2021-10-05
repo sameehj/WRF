@@ -88,8 +88,10 @@ module wrf_data_adios2
      logical                               :: first_operation
      type(adios2_io)                       :: adios2IO
      type(adios2_engine)                   :: adios2Engine
+     type(adios2_operator)                 :: compress_operator
      !type(adios2_variable)                 :: adios2_times_var
      !type(adios2_variable)    , pointer    :: adios2_vars(:)
+     character(32)                         :: blosc_compressor
    end type wrf_data_handle
    type(wrf_data_handle),target            :: WrfDataHandles(WrfDataHandleMax)
  end module wrf_data_adios2
@@ -1270,6 +1272,8 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
   ! adios2 variables
   type(adios2_variable)             :: var
   type(adios2_attribute)            :: attribute
+  logical                           :: compression_enabled
+  character*32                      :: compressor
 
   if(WrfIOnotInitialized) then
     Status = WRF_IO_NOT_INITIALIZED 
@@ -1338,6 +1342,18 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
     write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
     call wrf_debug ( WARN , TRIM(msg))
     return
+  endif
+  CALL nl_get_adios2_compression_enable(1,   compression_enabled)
+  CALL nl_get_adios2_blosc_compressor(1,   compressor)
+  if (compression_enabled) then
+    DH%blosc_compressor = compressor
+    call adios2_define_operator(DH%compress_operator, adios, 'Compressor', 'blosc', stat)
+    call adios2_err(stat,Status)
+    if(Status /= WRF_NO_ERR) then
+      write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
+      call wrf_debug ( WARN , TRIM(msg))
+      return
+    endif
   endif
   DH%DimLengths(1) = DateStrLen
   return
@@ -2409,6 +2425,7 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
   ! Local, possibly adjusted, copies of MemoryStart and MemoryEnd
   integer       ,dimension(NVarDims)           :: lMemoryStart, lMemoryEnd
   character(80),dimension(NVarDims+1)          :: DimNamesOut
+  integer                                      :: operation_id
 
   
   MemoryOrder = trim(adjustl(MemoryOrdIn))
@@ -2580,6 +2597,25 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
       write(msg,*) 'ext_adios2_write_field: adios2 error for ',TRIM(VarName),' in ',__FILE__,', line', __LINE__
       call wrf_debug ( WARN , TRIM(msg))
       return
+    endif
+    if (DH%compress_operator%valid .eqv. .true.) then
+      if (DH%blosc_compressor == 'blosclz') then
+        call adios2_add_operation(operation_id, VarID, DH%compress_operator, 'compressor', 'blosclz', stat)
+      elseif (DH%blosc_compressor == 'zlib') then
+        call adios2_add_operation(operation_id, VarID, DH%compress_operator, 'compressor', 'zlib', stat)
+      elseif (DH%blosc_compressor == 'lz4') then
+        call adios2_add_operation(operation_id, VarID, DH%compress_operator, 'compressor', 'lz4', stat)
+      elseif (DH%blosc_compressor == 'lz4hc') then
+        call adios2_add_operation(operation_id, VarID, DH%compress_operator, 'compressor', 'lz4hc', stat)
+      elseif (DH%blosc_compressor == 'zstd') then
+          call adios2_add_operation(operation_id, VarID, DH%compress_operator, 'compressor', 'zstd', stat)
+      endif
+      call adios2_err(stat,Status)
+      if(Status /= WRF_NO_ERR) then
+        write(msg,*) 'ext_adios2_write_field: adios2 error for ',TRIM(VarName),' in ',__FILE__,', line', __LINE__
+        call wrf_debug ( WARN , TRIM(msg))
+        return
+      endif
     endif
     DH%VarIDs(NVar) = VarID
 
