@@ -1,34 +1,32 @@
 # install dependencies
-spack install -y parallel-netcdf ^openmpi
-spack install -y netcdf-c ^openmpi@master ^hdf5 +fortran
-spack install -y netcdf-fortran ^openmpi ^hdf5 +fortran
+spack install -y parallel-netcdf
+spack install -y netcdf-c
+spack install -y netcdf-fortran
 spack install -y jasper
 spack install -y libpng
-spack install -y adios2 +python ^python +tkinter
-spack install -y py-matplotlib ^python +tkinter
-echo 
+spack install -y adios2 +python
+spack install -y py-matplotlib
 
 
-# fix for netcdf-c and netcdf-fortran (need root)
-NETCDF=$(spack location -i netcdf-fortran ^openmpi@master ^hdf5 +fortran)
-NETCDF_C=$(spack location -i netcdf-c ^openmpi@master ^hdf5 +fortran)
+# fix for netcdf-c and netcdf-fortran
+NETCDF=$(spack location -i netcdf-fortran)
+NETCDF_C=$(spack location -i netcdf-c)
 ln -sf $NETCDF_C/include/*  $NETCDF/include/
 ln -sf $NETCDF_C/lib/*  $NETCDF/lib/
 
 
 # load dependencies
 spack load openmpi
-spack load parallel-netcdf ^openmpi
-spack load netcdf-c ^openmpi ^hdf5 +fortran
-spack load netcdf-fortran ^openmpi ^hdf5 +fortran
+spack load parallel-netcdf
+spack load netcdf-c
+spack load netcdf-fortran
 spack load jasper
 spack load libpng
-spack load adios2 +python ^python +tkinter
-echo
+spack load adios2 +python
 
 
 # environment varirables
-export NETCDF=$(spack location -i netcdf-fortran ^hdf5 +fortran)
+export NETCDF=$(spack location -i netcdf-fortran)
 export PNETCDF=$(spack location -i parallel-netcdf)
 export JASPERINC=$(spack location -i jasper)/include
 export JASPERLIB=$(spack location -i jasper)/lib
@@ -42,9 +40,9 @@ export ADIOS2LIB=$(adios2-config --fortran-libs)
 export FCFLAGS='-w -O2 -ffixed-line-length-0  -fallow-argument-mismatch -fallow-invalid-boz'
 export FFLAGS='-w -O2 -ffree-line-length-0 -fallow-argument-mismatch -fallow-invalid-boz'
 
-# configure
-#cd /path/to/wrf/src
+# cd and configure
+cd ..
 ./configure
 
 # compile
-./compile em_real 2>&1 | tee wrf_compile.log
+./compile -j 4 em_real 2>&1 | tee wrf_compile.log
