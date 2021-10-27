@@ -1,10 +1,10 @@
 # install dependencies
 spack install -y parallel-netcdf
-spack install -y netcdf-c
-spack install -y netcdf-fortran
+spack install -y netcdf-c ^hdf5 +fortran
+spack install -y netcdf-fortran ^hdf5 +fortran
 spack install -y jasper
 spack install -y libpng
-spack install -y adios2 +python
+spack install -y adios2@master +python
 spack install -y py-matplotlib
 
 
