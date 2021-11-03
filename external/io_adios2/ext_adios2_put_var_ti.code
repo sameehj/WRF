@@ -1,36 +1,8 @@
-!*------------------------------------------------------------------------------
-!*  Standard Disclaimer
-!*
-!*  Forecast Systems Laboratory
-!*  NOAA/OAR/ERL/FSL
-!*  325 Broadway
-!*  Boulder, CO     80303
-!*
-!*  AVIATION DIVISION
-!*  ADVANCED COMPUTING BRANCH
-!*  SMS/NNT Version: 2.0.0 
-!*
-!*  This software and its documentation are in the public domain and
-!*  are furnished "as is".  The United States government, its 
-!*  instrumentalities, officers, employees, and agents make no 
-!*  warranty, express or implied, as to the usefulness of the software 
-!*  and documentation for any purpose.  They assume no 
-!*  responsibility (1) for the use of the software and documentation; 
-!*  or (2) to provide technical support to users.
-!* 
-!*  Permission to use, copy, modify, and distribute this software is
-!*  hereby granted, provided that this disclaimer notice appears in 
-!*  all copies.  All modifications to this software must be clearly
-!*  documented, and are solely the responsibility of the agent making
-!*  the modification.  If significant modifications or enhancements
-!*  are made to this software, the SMS Development team
-!*  (sms-info@fsl.noaa.gov) should be notified.
-!*
 !*----------------------------------------------------------------------------
 !*
-!*  WRF NetCDF I/O
-!   Author:  Jacques Middlecoff jacquesm@fsl.noaa.gov
-!*  Date:    October 6, 2000
+!*  WRF ADIOS2 I/O
+!   Author:  Michael Laufer michael.laufer@huawei.com
+!*  Date:    November 3, 2021
 !*
 !*----------------------------------------------------------------------------
 
@@ -126,11 +98,6 @@
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
-    !if(len_trim(Data).le.0) then
-    !  stat = NF_ROUTINE(DH%NCID,DH%VarIDs(NVar),trim(Element),i2offset(len_trim(null)),null)
-    !else
-    !  stat = NF_ROUTINE(DH%NCID,DH%VarIDs(NVar),trim(Element), ARGS )
-    !endif
 #else
     call adios2_define_attribute(AttributeID,DH%adios2IO, trim(Element), &
               Data, Count, DH%VarIDs(NVar)%name, stat)
@@ -140,7 +107,6 @@
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
-    !stat = NF_ROUTINE(DH%NCID,DH%VarIDs(NVar),trim(Element), ARGS )
 #endif
 #ifdef LOG
     deallocate(Buffer, STAT=stat)

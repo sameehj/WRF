@@ -1,36 +1,8 @@
-!*------------------------------------------------------------------------------
-!*  Standard Disclaimer
-!*
-!*  Forecast Systems Laboratory
-!*  NOAA/OAR/ERL/FSL
-!*  325 Broadway
-!*  Boulder, CO     80303
-!*
-!*  AVIATION DIVISION
-!*  ADVANCED COMPUTING BRANCH
-!*  SMS/NNT Version: 2.0.0 
-!*
-!*  This software and its documentation are in the public domain and
-!*  are furnished "as is".  The United States government, its 
-!*  instrumentalities, officers, employees, and agents make no 
-!*  warranty, express or implied, as to the usefulness of the software 
-!*  and documentation for any purpose.  They assume no 
-!*  responsibility (1) for the use of the software and documentation; 
-!*  or (2) to provide technical support to users.
-!* 
-!*  Permission to use, copy, modify, and distribute this software is
-!*  hereby granted, provided that this disclaimer notice appears in 
-!*  all copies.  All modifications to this software must be clearly
-!*  documented, and are solely the responsibility of the agent making
-!*  the modification.  If significant modifications or enhancements
-!*  are made to this software, the SMS Development team
-!*  (sms-info@fsl.noaa.gov) should be notified.
-!*
 !*----------------------------------------------------------------------------
 !*
-!*  WRF NetCDF I/O
-!   Author:  Jacques Middlecoff jacquesm@fsl.noaa.gov
-!*  Date:    October 6, 2000
+!*  WRF ADIOS2 I/O
+!   Author:  Michael Laufer michael.laufer@huawei.com
+!*  Date:    November 3, 2021
 !*
 !*----------------------------------------------------------------------------
 
@@ -59,7 +31,6 @@
     call wrf_debug ( WARN , msg)
     return
   endif
-! Do nothing unless it is time to write time-independent domain metadata.  
 IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
   if(DH%FileStatus == WRF_FILE_NOT_OPENED) then
     Status = WRF_WARN_FILE_NOT_OPENED  
@@ -87,7 +58,6 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
            Buffer(i)=0
         endif
       enddo
-      ! throwaway attribute id (need to check if that is alright)
       call adios2_define_attribute(AttributeID, DH%adios2IO, Element, Buffer, Count, stat)
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
@@ -95,7 +65,6 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
         call wrf_debug ( WARN , TRIM(msg))
         return
       endif
-      !stat = NF_ROUTINE (DH%NCID,NF_GLOBAL,Element,ARGS)
       deallocate(Buffer, STAT=stat2)
       if(stat2/= 0) then
         Status = WRF_ERR_FATAL_DEALLOCATION_ERR 
@@ -104,7 +73,6 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
         return
       endif
 #else
-      ! throwaway attribute id (need to check if that is alright)
 #ifdef CHAR_TYPE
       call adios2_define_attribute(AttributeID, DH%adios2IO, Element, Data, stat)
 #else
@@ -116,10 +84,8 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
         call wrf_debug ( WARN , TRIM(msg))
         return
       endif
-      !stat = NF_ROUTINE (DH%NCID,NF_GLOBAL,Element,ARGS)
 #endif
   elseif (DH%FileStatus == WRF_FILE_OPENED_FOR_WRITE) then
-    !stat = NFMPI_REDEF(DH%NCID)
 #ifdef LOG
       allocate(Buffer(Count), STAT=stat)
       if(stat/= 0) then
@@ -143,7 +109,6 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
         call wrf_debug ( WARN , TRIM(msg))
         return
       endif
-      !stat = NF_ROUTINE (DH%NCID,NF_GLOBAL,Element,ARGS)
       deallocate(Buffer, STAT=stat2)
       if(stat2/= 0) then
         Status = WRF_ERR_FATAL_DEALLOCATION_ERR  
@@ -164,9 +129,7 @@ IF ( adios2_ok_to_put_dom_ti( DataHandle ) ) THEN
         call wrf_debug ( WARN , TRIM(msg))
         return
       endif
-      !stat = NF_ROUTINE (DH%NCID,NF_GLOBAL,Element,ARGS)
 #endif
-!  stat = NFMPI_ENDDEF(DH%NCID)
     
   else
     Status = WRF_ERR_FATAL_BAD_FILE_STATUS  

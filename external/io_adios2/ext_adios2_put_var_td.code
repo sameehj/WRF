@@ -1,36 +1,8 @@
-!*------------------------------------------------------------------------------
-!*  Standard Disclaimer
-!*
-!*  Forecast Systems Laboratory
-!*  NOAA/OAR/ERL/FSL
-!*  325 Broadway
-!*  Boulder, CO     80303
-!*
-!*  AVIATION DIVISION
-!*  ADVANCED COMPUTING BRANCH
-!*  SMS/NNT Version: 2.0.0 
-!*
-!*  This software and its documentation are in the public domain and
-!*  are furnished "as is".  The United States government, its 
-!*  instrumentalities, officers, employees, and agents make no 
-!*  warranty, express or implied, as to the usefulness of the software 
-!*  and documentation for any purpose.  They assume no 
-!*  responsibility (1) for the use of the software and documentation; 
-!*  or (2) to provide technical support to users.
-!* 
-!*  Permission to use, copy, modify, and distribute this software is
-!*  hereby granted, provided that this disclaimer notice appears in 
-!*  all copies.  All modifications to this software must be clearly
-!*  documented, and are solely the responsibility of the agent making
-!*  the modification.  If significant modifications or enhancements
-!*  are made to this software, the SMS Development team
-!*  (sms-info@fsl.noaa.gov) should be notified.
-!*
 !*----------------------------------------------------------------------------
 !*
-!*  WRF NetCDF I/O
-!   Author:  Jacques Middlecoff jacquesm@fsl.noaa.gov
-!*  Date:    October 6, 2000
+!*  WRF ADIOS2 I/O
+!   Author:  Michael Laufer michael.laufer@huawei.com
+!*  Date:    November 3, 2021
 !*
 !*----------------------------------------------------------------------------
 
@@ -53,9 +25,9 @@
   integer                               :: stat2
   integer               ,allocatable    :: Buffer(:)
   integer                               :: i
-  integer                               :: VDims (1) !was length 2
-  integer(kind=8)                       :: VStart(1) !was length 2
-  integer(kind=8)                       :: VCount(1) !was length 2
+  integer                               :: VDims (1)
+  integer(kind=8)                       :: VStart(1)
+  integer(kind=8)                       :: VCount(1)
   integer                               :: NVar
   integer                               :: TimeIndex
   integer                               :: NCID
@@ -123,7 +95,6 @@
       elseif(DH%DimLengths(i) == NO_DIM) then
         call adios2_define_attribute(DH%DimIDs(i), DH%adios2IO, '_DIM_'//DH%DimNames(i), &
               LENGTH, stat)
-        !stat = NFMPI_DEF_DIM(NCID,DH%DimNames(i),i2offset(LENGTH),DH%DimIDs(i))
         call adios2_err(stat,Status)
         if(Status /= WRF_NO_ERR) then
           write(msg,*) 'adios2 error in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
@@ -141,8 +112,6 @@
       endif
     enddo
     DH%MDVarDimLens(NVar) = LENGTH
-    !VDims(1) = DH%DimIDs(i)
-    !VDims(2) = DH%DimUnlimID
     DimNamesOut(1) = DH%DimNames(i)
     DimNamesOut(2) = DH%DimUnlimName
 
@@ -151,14 +120,12 @@
     !
     call adios2_define_variable(DH%MDVarIDs(NVar), DH%adios2IO, Name, ADIOS2TYPE, &
                                 stat)
-    !stat = NFMPI_DEF_VAR(NCID,Name,NF_TYPE,2,VDims,DH%MDVarIDs(NVar))
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
       write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
       call wrf_debug ( WARN , TRIM(msg))
       return
     endif
-    ! add attribute of dimension names (for reconstructing netcdf file)
     call adios2_define_attribute(AttributeID,DH%adios2IO, 'Dims', &
               DimNamesOut, 2, DH%MDVarIDs(NVar)%name, '/', stat)
     call adios2_err(stat,Status)
@@ -206,9 +173,7 @@
       return
     endif
     VStart(1) = 0 !was 1
-    !VStart(2) = TimeIndex
     VCount(1) = LENGTH
-    !VCount(2) = 1
 #ifdef LOG
       allocate(Buffer(LENGTH), STAT=stat)
       if(stat/= 0) then
@@ -225,13 +190,6 @@
            Buffer(i)=0
         endif
       enddo
-      !call adios2_set_selection(DH%MDVarIDs(NVar), 1, VStart, VCount, stat)
-      !call adios2_err(stat,Status)
-      !if(Status /= WRF_NO_ERR) then
-      !  write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
-      !  call wrf_debug ( WARN , TRIM(msg))
-      !  return
-      !endif
       call adios2_put(DH%adios2Engine, DH%MDVarIDs(NVar), Buffer, adios2_mode_sync, stat)
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
@@ -239,7 +197,6 @@
         call wrf_debug ( WARN , TRIM(msg))
         return
       endif
-      !stat = NF_ROUTINE (NCID,DH%MDVarIDs(NVar),VStart,VCount,Buffer)
       deallocate(Buffer, STAT=stat2)
       if(stat2/= 0) then
         Status = WRF_ERR_FATAL_DEALLOCATION_ERR 
@@ -249,13 +206,6 @@
         return
       endif
 #else
-      !call adios2_set_selection(DH%MDVarIDs(NVar), 1, VStart, VCount, stat)
-      !call adios2_err(stat,Status)
-      !if(Status /= WRF_NO_ERR) then
-      !  write(msg,*) 'adios2 error in ext_adios2_put_var_td ',__FILE__,', line', __LINE__
-      !  call wrf_debug ( WARN , TRIM(msg))
-      !  return
-      !endif
       call adios2_put(DH%adios2Engine, DH%MDVarIDs(NVar), Data, adios2_mode_sync, stat)
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
@@ -263,7 +213,6 @@
         call wrf_debug ( WARN , TRIM(msg))
         return
       endif
-      !stat = NF_ROUTINE (NCID,DH%MDVarIDs(NVar),VStart,VCount,Data)
 #endif
   else
     Status = WRF_ERR_FATAL_BAD_FILE_STATUS

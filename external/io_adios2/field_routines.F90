@@ -1,38 +1,10 @@
-!*------------------------------------------------------------------------------
-!*  Standard Disclaimer
+!*----------------------------------------------------------------------------
 !*
-!*  Forecast Systems Laboratory
-!*  NOAA/OAR/ERL/FSL
-!*  325 Broadway
-!*  Boulder, CO     80303
+!*  WRF ADIOS2 I/O
+!   Author:  Michael Laufer michael.laufer@huawei.com
+!*  Date:    November 3, 2021
 !*
-!*  AVIATION DIVISION
-!*  ADVANCED COMPUTING BRANCH
-!*  SMS/NNT Version: 2.0.0 
-!*
-!*  This software and its documentation are in the public domain and
-!*  are furnished "as is".  The United States government, its 
-!*  instrumentalities, officers, employees, and agents make no 
-!*  warranty, express or implied, as to the usefulness of the software 
-!*  and documentation for any purpose.  They assume no 
-!*  responsibility (1) for the use of the software and documentation; 
-!*  or (2) to provide technical support to users.
-!* 
-!*  Permission to use, copy, modify, and distribute this software is
-!*  hereby granted, provided that this disclaimer notice appears in 
-!*  all copies.  All modifications to this software must be clearly
-!*  documented, and are solely the responsibility of the agent making
-!*  the modification.  If significant modifications or enhancements
-!*  are made to this software, the SMS Development team
-!*  (sms-info@fsl.noaa.gov) should be notified.
-!*
-!---------------------------------------------------------------------------
-!
-! WRF ADIOS2 I/O Module
-! Author:  Michael Laufer michael.laufer@toganetworks.com
-! Date:    June 10, 2021
-!
-!---------------------------------------------------------------------------
+!*----------------------------------------------------------------------------
 
 subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
   use wrf_data_adios2
@@ -46,7 +18,6 @@ subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,St
   type(adios2_variable)       ,intent(in)          :: VarID
   integer(kind=8),dimension(NVarDims),intent(in)   :: VStart
   integer(kind=8),dimension(NVarDims),intent(in)   :: VCount
-  !real, dimension(*)          ,intent(inout)       :: Data
   real                        ,intent(inout)       :: Data
   integer                     ,intent(out)         :: Status
   integer                                          :: stat
@@ -57,7 +28,7 @@ subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,St
   VStart_mpi = VStart
   VCount_mpi = VCount
   
-  !start arrays should start at 0?!?!?
+  !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
 
   call GetDH(DataHandle,DH,Status)
@@ -111,7 +82,7 @@ subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,
   VStart_mpi = VStart
   VCount_mpi = VCount
 
-  !start arrays should start at 0?!?!?
+  !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
 
   call GetDH(DataHandle,DH,Status)
@@ -120,7 +91,6 @@ subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-
   
   !adios2_set_selection to set start dims and count dims
   call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
@@ -165,7 +135,7 @@ subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Sta
   VStart_mpi = VStart
   VCount_mpi = VCount
 
-  !start arrays should start at 0?!?!?
+  !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
 
   call GetDH(DataHandle,DH,Status)
@@ -221,9 +191,8 @@ subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data
   VStart_mpi = VStart
   VCount_mpi = VCount
 
-  !start arrays should start at 0?!?!?
+  !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
-
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_LogicalFieldIO ',__FILE__,', line', __LINE__
