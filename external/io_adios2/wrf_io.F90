@@ -1207,7 +1207,7 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
   type(adios2_attribute)            :: timeAttribute
   logical                           :: compression_enabled
   character*32                      :: compressor
-  character(80),dimension(1)        :: DimNamesOut
+  character(80),dimension(2)        :: DimNamesOut
   
 
   if(WrfIOnotInitialized) then
@@ -1257,7 +1257,6 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
     DH%DimLengths(i) = NO_DIM
   enddo
   DH%DimNames(1) = 'DateStrLen'
-
   call adios2_define_attribute(DH%DimIDs(1), DH%adios2IO, '_DIM_DateStrLen', &
       DateStrLen, stat)
   call adios2_err(stat,Status)
@@ -1275,7 +1274,8 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
     return
   endif
   DimNamesOut(1) = 'DateStrLen'
-  call adios2_define_attribute(timeAttribute,DH%adios2IO, 'Dims', DimNamesOut, 1, DH%TimesVarID%name, '/', stat)
+  DimNamesOut(2) = 'Time'
+  call adios2_define_attribute(timeAttribute,DH%adios2IO, 'Dims', DimNamesOut, 2, DH%TimesVarID%name, '/', stat)
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
@@ -3224,244 +3224,3 @@ subroutine ext_adios2_get_var_info(DataHandle,Name,NDim,MemoryOrder,Stagger,Doma
   endif
   return
 end subroutine ext_adios2_get_var_info
-
-!subroutine ext_adios2_warning_str( Code, ReturnString, Status)
-!   use wrf_data_adios2
-!   use ext_adios2_support_routines
-!   implicit none
-!   use adios2
-!   include 'wrf_status_codes.h'
-  
-!   integer  , intent(in)  ::Code
-!   character *(*), intent(out) :: ReturnString
-!   integer, intent(out) ::Status
-  
-!   SELECT CASE (Code)
-!   CASE (0)
-!       ReturnString='No error'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1)
-!       ReturnString= 'File not found (or file is incomplete)'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-2)
-!       ReturnString='Metadata not found'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-3)
-!       ReturnString= 'Timestamp not found'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-4)
-!       ReturnString= 'No more timestamps'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-5)
-!       ReturnString= 'Variable not found'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-6)
-!       ReturnString= 'No more variables for the current time'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-7)
-!       ReturnString= 'Too many open files'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-8)
-!       ReturnString= 'Data type mismatch'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-9)
-!       ReturnString= 'Attempt to write read-only file'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-10)
-!       ReturnString= 'Attempt to read write-only file'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-11)
-!       ReturnString= 'Attempt to access unopened file'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-12)
-!       ReturnString= 'Attempt to do 2 trainings for 1 variable'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-13)
-!       ReturnString= 'Attempt to read past EOF'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-14)
-!       ReturnString= 'Bad data handle'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-15)
-!       ReturnString= 'Write length not equal to training length'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-16)
-!       ReturnString= 'More dimensions requested than training'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-17)
-!       ReturnString= 'Attempt to read more data than exists'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-18)
-!       ReturnString= 'Input dimensions inconsistent'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-19)
-!       ReturnString= 'Input MemoryOrder not recognized'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-20)
-!       ReturnString= 'A dimension name with 2 different lengths'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-21)
-!       ReturnString= 'String longer than provided storage'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-22)
-!       ReturnString= 'Function not supportable'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-23)
-!       ReturnString= 'Package implements this routine as NOOP'
-!       Status=WRF_NO_ERR
-!       return
-
-! !adios2-specific warning messages
-!   CASE (-1007)
-!       ReturnString= 'Bad data type'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1008)
-!       ReturnString= 'File not committed'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1009)
-!       ReturnString= 'File is opened for reading'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1011)
-!       ReturnString= 'Attempt to write metadata after open commit'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1010)
-!       ReturnString= 'I/O not initialized'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1012)
-!      ReturnString=  'Too many variables requested'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1013)
-!      ReturnString=  'Attempt to close file during a dry run'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1014)
-!       ReturnString= 'Date string not 19 characters in length'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1015)
-!       ReturnString= 'Attempt to read zero length words'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1016)
-!       ReturnString= 'Data type not found'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1017)
-!       ReturnString= 'Badly formatted date string'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1018)
-!       ReturnString= 'Attempt at read during a dry run'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1019)
-!       ReturnString= 'Attempt to get zero words'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1020)
-!       ReturnString= 'Attempt to put zero length words'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1021)
-!       ReturnString= 'adios2 error'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1022)
-!       ReturnString= 'Requested length <= 1'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1023)
-!       ReturnString= 'More data available than requested'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1024)
-!       ReturnString= 'New date less than previous date'
-!       Status=WRF_NO_ERR
-!       return
-
-!   CASE DEFAULT
-!       ReturnString= 'This warning code is not supported or handled directly by WRF and adios2. &
-!       & Might be an erroneous number, or specific to an i/o package other than adios2; you may need &
-!       & to be calling a package-specific routine to return a message for this warning code.'
-!       Status=WRF_NO_ERR
-!   END SELECT
-
-!  return
-!end subroutine ext_adios2_warning_str
-
-
-! !returns message string for all WRF and adios2 warning/error status codes
-!subroutine ext_adios2_error_str( Code, ReturnString, Status)
-!   use wrf_data_adios2
-!   use ext_adios2_support_routines
-!   implicit none
-!   use adios2
-!   include 'wrf_status_codes.h'
-
-!   integer  , intent(in)  ::Code
-!   character *(*), intent(out) :: ReturnString
-!   integer, intent(out) ::Status
-
-!   SELECT CASE (Code)
-!   CASE (-100)
-!       ReturnString= 'Allocation Error'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-101)
-!       ReturnString= 'Deallocation Error'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-102)
-!       ReturnString= 'Bad File Status'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1004)
-!       ReturnString= 'Variable on disk is not 3D'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1005)
-!       ReturnString= 'Metadata on disk is not 1D'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE (-1006)
-!       ReturnString= 'Time dimension too small'
-!       Status=WRF_NO_ERR
-!       return
-!   CASE DEFAULT
-!       ReturnString= 'This error code is not supported or handled directly by WRF and adios2. &
-!       & Might be an erroneous number, or specific to an i/o package other than adios2; you may need & 
-!       & to be calling a package-specific routine to return a message for this error code.'
-!       Status=WRF_NO_ERR
-!   END SELECT
-
-!  return
-!end subroutine ext_adios2_error_str
