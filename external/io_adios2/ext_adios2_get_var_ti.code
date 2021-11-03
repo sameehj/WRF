@@ -27,7 +27,6 @@
   integer                               :: XType
   type(adios2_attribute)                :: AttributeID
 
-
   if(Count <= 0) then
     Status = WRF_WARN_ZERO_LENGTH_GET  
     write(msg,*) &

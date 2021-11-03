@@ -114,10 +114,8 @@
     DH%MDVarDimLens(NVar) = LENGTH
     DimNamesOut(1) = DH%DimNames(i)
     DimNamesOut(2) = DH%DimUnlimName
-
     zero(1) = 0
     shape_dims(1) = LENGTH
-    !
     call adios2_define_variable(DH%MDVarIDs(NVar), DH%adios2IO, Name, ADIOS2TYPE, &
                                 stat)
     call adios2_err(stat,Status)

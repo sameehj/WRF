@@ -26,7 +26,6 @@
   character*1                           :: null
   type(adios2_attribute)                :: AttributeID
 
-
   null=char(0)
   VarName = Var
   call GetDH(DataHandle,DH,Status)

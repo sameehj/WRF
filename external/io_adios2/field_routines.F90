@@ -22,23 +22,19 @@ subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,St
   integer                     ,intent(out)         :: Status
   integer                                          :: stat
   type(wrf_data_handle) ,pointer                   :: DH
- 
-!local
+  !local
   integer(kind=8)           , dimension(NVarDims)  :: VStart_mpi, VCount_mpi
   VStart_mpi = VStart
   VCount_mpi = VCount
   
   !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
-
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-
- 
   !adios2_set_selection to set start dims and count dims
   call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
   call adios2_err(stat,Status)
@@ -76,22 +72,19 @@ subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,
   integer                     ,intent(out)          :: Status
   integer                                           :: stat
   type(wrf_data_handle) ,pointer                    :: DH
- 
-!local
+  !local
   integer(kind=8)           , dimension(NVarDims)   :: VStart_mpi, VCount_mpi
   VStart_mpi = VStart
   VCount_mpi = VCount
 
   !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
-
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_DoubleFieldIO ',__FILE__,', line', __LINE__
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-  
   !adios2_set_selection to set start dims and count dims
   call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
   call adios2_err(stat,Status)
@@ -129,22 +122,19 @@ subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Sta
   integer                     ,intent(out)        :: Status
   integer                                         :: stat
   type(wrf_data_handle) ,pointer                  :: DH
- 
-!local
+  !local
   integer(kind=8)           , dimension(NVarDims) :: VStart_mpi, VCount_mpi
   VStart_mpi = VStart
   VCount_mpi = VCount
 
   !start arrays should start at 0 for ADIOS2
   VStart_mpi = VStart_mpi - 1
-
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
     call wrf_debug ( WARN , TRIM(msg))
     return
   endif
-
   !adios2_set_selection to set start dims and count dims
   call adios2_set_selection(VarID, VarID%ndims, VStart_mpi, VCount_mpi, stat)
   call adios2_err(stat,Status)
@@ -185,8 +175,7 @@ subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data
   type(wrf_data_handle) ,pointer                                      :: DH
   integer,dimension(:,:,:),allocatable                                :: Buffer
   integer                                                             :: i,j,k
-
-!local
+  !local
   integer(kind=8)                               , dimension(NVarDims) :: VStart_mpi, VCount_mpi
   VStart_mpi = VStart
   VCount_mpi = VCount
@@ -226,7 +215,6 @@ subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data
         enddo
       enddo
     enddo
-    !put var
     call adios2_put(DH%adios2Engine, VarID, Buffer, adios2_mode_sync, stat)
     call adios2_err(stat,Status)
     if(Status /= WRF_NO_ERR) then
