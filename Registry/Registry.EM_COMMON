@@ -654,9 +654,9 @@ state   real    qrcn           ikjftb   scalar      1         -     \
 state   real    qnin           ikjftb   scalar      1         -     \
    i0rhusdf=(bdy_interp:dt)  "QNIN"           "Potential ice nuclei number mixing ratio" "# kg-1"
 state   real    fi             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "FI"             "Shape moment mixing ratio for pristine ice" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "FI"             "Shape moment mixing ratio for pristine ice" "m^3 kg-1"
 state   real    fs             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "FS"             "Shape moment mixing ratio for snow-aggregates" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "FS"             "Shape moment mixing ratio for snow-aggregates" "m^3 kg-1"
 state   real    vi             ikjftb   scalar      1         -     \
    i0rhusdf=(bdy_interp:dt)  "VI"             "Volume moment mixing ratio for pristine ice" "m^3 kg-1"
 state   real    vs             ikjftb   scalar      1         -     \
@@ -664,15 +664,15 @@ state   real    vs             ikjftb   scalar      1         -     \
 state   real    vg             ikjftb   scalar      1         -     \
    i0rhusdf=(bdy_interp:dt)  "VG"             "Volume moment mixing ratio for rimed ice" "m^3 kg-1"
 state   real    ai             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AI"             "Second moment mixing ratio for pristine ice" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "AI"             "Second moment mixing ratio for pristine ice" "m^2 kg-1"
 state   real    as             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AS"             "Second moment mixing ratio for snow-aggregates" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "AS"             "Second moment mixing ratio for snow-aggregates" "m^2 kg-1"
 state   real    ag             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AG"             "Second moment mixing ratio for rimed ice" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "AG"             "Second moment mixing ratio for rimed ice" "m^2 kg-1"
 state   real    ah             ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "AH"             "Second moment mixing ratio for hail" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "AH"             "Second moment mixing ratio for hail" "m^2 kg-1"
 state   real    i3m            ikjftb   scalar      1         -     \
-   i0rhusdf=(bdy_interp:dt)  "I3M"            "Third moment mixing ratio for pristine ice" "kg kg-1"
+   i0rhusdf=(bdy_interp:dt)  "I3M"            "Third moment mixing ratio for pristine ice" "m^3 kg-1"
 
 state   real    dfi_qdcn       ikjftb   dfi_scalar      1         -     \
    rusdf=(bdy_interp:dt)     "DFI_QDCN"      "Mass mixing ratio for dry CN" "kg kg-1"
@@ -685,9 +685,9 @@ state   real    dfi_qrcn       ikjftb   dfi_scalar      1         -     \
 state   real    dfi_qnin       ikjftb   dfi_scalar      1         -     \
    rusdf=(bdy_interp:dt)     "DFI_QNIN"      "Potential ice nuclei number mixing ratio" "# kg-1"
 state   real    dfi_fi         ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_FI"        "Shape moment mixing ratio for pristine ice" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_FI"        "Shape moment mixing ratio for pristine ice" "m^3 kg-1"
 state   real    dfi_fs         ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_FS"        "Shape moment mixing ratio for snow-aggregates" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_FS"        "Shape moment mixing ratio for snow-aggregates" "m^3 kg-1"
 state   real    dfi_vi         ikjftb   dfi_scalar      1         -     \
    rusdf=(bdy_interp:dt)     "DFI_VI"        "Volume moment mixing ratio for pristine ice" "m^3 kg-1"
 state   real    dfi_vs         ikjftb   dfi_scalar      1         -     \
@@ -695,15 +695,15 @@ state   real    dfi_vs         ikjftb   dfi_scalar      1         -     \
 state   real    dfi_vg         ikjftb   dfi_scalar      1         -     \
    rusdf=(bdy_interp:dt)     "DFI_VG"        "Volume moment mixing ratio for rimed ice" "m^3 kg-1"
 state   real    dfi_ai         ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_AI"        "Second moment mixing ratio for pristine ice" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_AI"        "Second moment mixing ratio for pristine ice" "m^2 kg-1"
 state   real    dfi_as         ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_AS"        "Second moment mixing ratio for snow-aggregates" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_AS"        "Second moment mixing ratio for snow-aggregates" "m^2 kg-1"
 state   real    dfi_ag         ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_AG"        "Second moment mixing ratio for rimed ice" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_AG"        "Second moment mixing ratio for rimed ice" "m^2 kg-1"
 state   real    dfi_ah         ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_AH"        "Second moment mixing ratio for hail" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_AH"        "Second moment mixing ratio for hail" "m^2 kg-1"
 state   real    dfi_i3m        ikjftb   dfi_scalar      1         -     \
-   rusdf=(bdy_interp:dt)     "DFI_I3M"       "Third moment mixing ratio for pristine ice" "kg kg-1"
+   rusdf=(bdy_interp:dt)     "DFI_I3M"       "Third moment mixing ratio for pristine ice" "m^3 kg-1"
 #-------------------------------------for ntu3m----------------------------------------------------------
 #
 #-----------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -1425,9 +1425,8 @@ state logical just_read_auxinput4  -      misc      -         -     r    "we_jus
 state logical just_read_boundary   -      misc      -         -     r    "we_just_d01_LBC"           "1=BOUNDARY  ALARM RINGING, 0=NO BOUNDARY  ALARM"  "-"
 state   real    mf_fft         -       misc         -         -     r        "mf_fft"                "Mass point map factor at equatorward FFT filter location"  ""
 state   real    p_top          -       misc         -         -     irh       "p_top"                "PRESSURE TOP OF THE MODEL"  "Pa"
-state logical got_var_sso	-	misc	    -	      -     i02r  "got_var_sso"		     "whether VAR_SSO was included in WPS output (beginning V3.4)" ""
+state logical got_var_sso      -       misc         -         -     i02rh    "got_var_sso"           "whether VAR_SSO was included in WPS output (beginning V3.4)" ""
 state logical v4_metgrid 	-	misc	    -	      -     -     "v4_metgrid"		     "for real, T/F: identify if this is v4 metgrid data" ""
-
 
 #BSINGH - Adding all these variables for CuP scheme[any var before t00]
 state   real    lat_ll_t       -       dyn_em       -         -     ir       "lat_ll_t"              "latitude lower left, temp point" "degrees"
@@ -1465,7 +1464,7 @@ state   real    lon_lr_d       -       dyn_em       -         -     ir       "lo
 #BSINGH -ENDS
 
 state   real    t00            -       misc         -         -     i02rh     "t00"                   "BASE STATE TEMPERATURE   "  "K"
-state   real    p00            -       misc         -         -     i02rh     "p00"                   "BASE STATE PRESURE"         "Pa"
+state   real    p00            -       misc         -         -     i02rh     "p00"                   "BASE STATE PRESSURE"         "Pa"
 state   real    tlp            -       misc         -         -     i02rh     "tlp"                   "BASE STATE LAPSE RATE    "  ""
 state   real    tiso           -       misc         -         -     i02rh     "tiso"                  "TEMP AT WHICH THE BASE T TURNS CONST"  "K"
 state   real    tlp_strat      -       misc         -         -     i02rh     "tlp_strat"             "BASE STATE LAPSE RATE (DT/D(LN(P)) IN STRATOSPHERE"  "K"
@@ -3072,7 +3071,7 @@ package   nolsmscheme    sf_surface_physics==0       -             -
 package   slabscheme     sf_surface_physics==1       -             -
 package   lsmscheme      sf_surface_physics==2       -             state:flx4,fvb,fbur,fgsn,smcrel,xlaidyn
 package   ruclsmscheme   sf_surface_physics==3       -             state:smfr3d,keepfr3dflag,soilt1,rhosnf,snowfallac,precipfr,acrunoff
-package   clmscheme      sf_surface_physics==5       -             state:numc,nump,sabv,sabg,lwup,lhsoi,lhveg,lhtran,snl,snowdp,wtc,wtp,h2osno,t_grnd,t_veg,h2ocan,h2ocan_col,t2m_max,t2m_min,t2clm,t_ref2m,q_ref2m,h2osoi_liq_s1,h2osoi_liq_s2,h2osoi_liq_s3,h2osoi_liq_s4,h2osoi_liq_s5,h2osoi_liq1,h2osoi_liq2,h2osoi_liq3,h2osoi_liq4,h2osoi_liq5,h2osoi_liq6,h2osoi_liq7,h2osoi_liq8,h2osoi_liq9,h2osoi_liq10,h2osoi_ice_s1,h2osoi_ice_s2,h2osoi_ice_s3,h2osoi_ice_s4,h2osoi_ice_s5,h2osoi_ice1,h2osoi_ice2,h2osoi_ice3,h2osoi_ice4,h2osoi_ice5,h2osoi_ice6,h2osoi_ice7,h2osoi_ice8,h2osoi_ice9,h2osoi_ice10,t_soisno_s1,t_soisno_s2,t_soisno_s3,t_soisno_s4,t_soisno_s5,t_soisno1,t_soisno2,t_soisno3,t_soisno4,t_soisno5,t_soisno6,t_soisno7,t_soisno8,t_soisno9,t_soisno10,dzsnow1,dzsnow2,dzsnow3,dzsnow4,dzsnow5,snowrds1,snowrds2,snowrds3,snowrds4,snowrds5,t_lake1,t_lake2,t_lake3,t_lake4,t_lake5,t_lake6,t_lake7,t_lake8,t_lake9,t_lake10,h2osoi_vol1,h2osoi_vol2,h2osoi_vol3,h2osoi_vol4,h2osoi_vol5,h2osoi_vol6,h2osoi_vol7,h2osoi_vol8,h2osoi_vol9,h2osoi_vol10,albedosubgrid,lhsubgrid,hfxsubgrid,lwupsubgrid,q2subgrid,sabvsubgrid,sabgsubgrid,nrasubgrid,swupsubgrid,t_veg24,t_veg240,fsun,fsun24,fsun240,fsd24,fsd240,fsi24,fsi240,laip,pct_pft
+package   clmscheme      sf_surface_physics==5       -             state:numc,nump,sabv,sabg,lwup,lhsoi,lhveg,lhtran,snl,snowdp,wtc,wtp,h2osno,t_grnd,t_veg,h2ocan,h2ocan_col,t2m_max,t2m_min,t2clm,t_ref2m,q_ref2m,h2osoi_liq_s1,h2osoi_liq_s2,h2osoi_liq_s3,h2osoi_liq_s4,h2osoi_liq_s5,h2osoi_liq1,h2osoi_liq2,h2osoi_liq3,h2osoi_liq4,h2osoi_liq5,h2osoi_liq6,h2osoi_liq7,h2osoi_liq8,h2osoi_liq9,h2osoi_liq10,h2osoi_ice_s1,h2osoi_ice_s2,h2osoi_ice_s3,h2osoi_ice_s4,h2osoi_ice_s5,h2osoi_ice1,h2osoi_ice2,h2osoi_ice3,h2osoi_ice4,h2osoi_ice5,h2osoi_ice6,h2osoi_ice7,h2osoi_ice8,h2osoi_ice9,h2osoi_ice10,t_soisno_s1,t_soisno_s2,t_soisno_s3,t_soisno_s4,t_soisno_s5,t_soisno1,t_soisno2,t_soisno3,t_soisno4,t_soisno5,t_soisno6,t_soisno7,t_soisno8,t_soisno9,t_soisno10,dzsnow1,dzsnow2,dzsnow3,dzsnow4,dzsnow5,snowrds1,snowrds2,snowrds3,snowrds4,snowrds5,t_lake1,t_lake2,t_lake3,t_lake4,t_lake5,t_lake6,t_lake7,t_lake8,t_lake9,t_lake10,h2osoi_vol1,h2osoi_vol2,h2osoi_vol3,h2osoi_vol4,h2osoi_vol5,h2osoi_vol6,h2osoi_vol7,h2osoi_vol8,h2osoi_vol9,h2osoi_vol10,albedosubgrid,lhsubgrid,hfxsubgrid,lwupsubgrid,q2subgrid,sabvsubgrid,sabgsubgrid,nrasubgrid,swupsubgrid,t_veg24,t_veg240,fsun,fsun24,fsun240,fsd24,fsd240,fsi24,fsi240,laip,pct_pft_input
 package   noahmpscheme   sf_surface_physics==4       -             state:isnowxy,tvxy,tgxy,canliqxy,canicexy,eahxy,tahxy,cmxy,chxy,fwetxy,sneqvoxy,alboldxy,qsnowxy,qrainxy,wslakexy,zwtxy,waxy,wtxy,tsnoxy,zsnsoxy,snicexy,snliqxy,lfmassxy,rtmassxy,stmassxy,woodxy,stblcpxy,fastcpxy,xsaixy,taussxy,t2mvxy,t2mbxy,q2mvxy,q2mbxy,tradxy,neexy,gppxy,nppxy,fvegxy,qinxy,runsfxy,runsbxy,ecanxy,edirxy,etranxy,fsaxy,firaxy,aparxy,psnxy,savxy,sagxy,rssunxy,rsshaxy,bgapxy,wgapxy,tgvxy,tgbxy,chvxy,chbxy,shgxy,shcxy,shbxy,evgxy,evbxy,ghvxy,ghbxy,irgxy,ircxy,irbxy,trxy,evcxy,chleafxy,chucxy,chv2xy,chb2xy,chstarxy,smoiseq,smcwtdxy,rechxy,deeprechxy,fdepthxy,areaxy,rivercondxy,riverbedxy,eqzwt,pexpxy,qrfxy,qrfsxy,qspringxy,qspringsxy,qslatxy,stepwtd,rechclim,gddxy,grainxy,croptype,planting,harvest,season_gdd,cropcat,pgsxy,soilcomp,soilcl1,soilcl2,soilcl3,soilcl4,irfract,sifract,mifract,fifract,irnumsi,irnummi,irnumfi,irwatsi,irwatmi,irwatfi,irsivol,irmivol,irfivol,ireloss,irrsplh
 package   ctsmscheme     sf_surface_physics==6       -             - 
 package   pxlsmscheme    sf_surface_physics==7       -             state:t2_ndg_new,q2_ndg_new,t2_ndg_old,q2_ndg_old,t2obs,q2obs,vegf_px,imperv,canfra,lai_px,wwlt_px,wfc_px,wsat_px,clay_px,csand_px,fmsand_px
@@ -3087,6 +3086,7 @@ package   drip           sf_surf_irr_alloc==2        -             state:irrigat
 package   sprinkler      sf_surf_irr_alloc==3        -             state:irrigation,irr_rand_field
 
 
+package   lesscheme      bl_pbl_physics==0           -             -
 package   ysuscheme      bl_pbl_physics==1           -             -
 package   myjpblscheme   bl_pbl_physics==2           -             state:tke_pbl,el_pbl
 package   gfsscheme      bl_pbl_physics==3           -             -
