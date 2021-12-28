@@ -1295,12 +1295,14 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
   CALL nl_get_adios2_blosc_compressor(1,   compressor)
   if (compression_enabled) then
     DH%blosc_compressor = compressor
-    call adios2_define_operator(DH%compress_operator, adios, 'Compressor', 'blosc', stat)
-    call adios2_err(stat,Status)
-    if(Status /= WRF_NO_ERR) then
-      write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
-      call wrf_debug ( WARN , TRIM(msg))
-      return
+    if (DH%compress_operator%name .ne. 'Compressor') then
+      call adios2_define_operator(DH%compress_operator, adios, 'Compressor', 'blosc', stat)
+      call adios2_err(stat,Status)
+      if(Status /= WRF_NO_ERR) then
+        write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
+        call wrf_debug ( WARN , TRIM(msg))
+        return
+      endif
     endif
   endif
   DH%DimLengths(1) = DateStrLen
