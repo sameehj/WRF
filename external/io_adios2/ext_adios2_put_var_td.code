@@ -15,8 +15,8 @@
   character*(*)         ,intent(in)     :: Element
   character*(*)         ,intent(in)     :: DateStr
   character*(*)         ,intent(in)     :: Var
-  TYPE_DATA
   TYPE_COUNT
+  TYPE_DATA
   integer               ,intent(out)    :: Status
   type(wrf_data_handle) ,pointer        :: DH
   character (31)                        :: VarName

@@ -15,8 +15,8 @@
   character*(*)         ,intent(in)     :: Element
   character (DateStrLen),intent(in)     :: DateStr
   character*(*)         ,intent(in)     :: Var
-  TYPE_DATA
   TYPE_COUNT
+  TYPE_DATA
   TYPE_OUTCOUNT
   integer               ,intent(out)    :: Status
   type(wrf_data_handle) ,pointer        :: DH

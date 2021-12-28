@@ -14,8 +14,8 @@
   integer               ,intent(in)     :: DataHandle
   character*(*)         ,intent(in)     :: Element
   character*(*)         ,intent(in)     :: Var
-  TYPE_DATA
   TYPE_COUNT
+  TYPE_DATA
   TYPE_OUTCOUNT
   integer               ,intent(out)    :: Status
   type(wrf_data_handle) ,pointer        :: DH
