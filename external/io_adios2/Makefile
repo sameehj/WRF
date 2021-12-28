@@ -35,4 +35,4 @@ field_routines.o:	field_routines.F90 wrf_io.o
 			$(FC) $(FFLAGS) -c field_routines.f
 
 superclean:
-			@/bin/rm -f *.f *.o *.mod libwrfio_adios2.a
+			@/bin/rm -f *.f *.o *.mod *.smod libwrfio_adios2.a
