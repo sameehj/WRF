@@ -1219,6 +1219,10 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
   logical                           :: compression_enabled
   character*32                      :: compressor
   character(80),dimension(2)        :: DimNamesOut
+  logical                           :: in_config
+  integer                           :: numaggregators
+  character(256)                    :: s_numaggregators
+
   
   if(WrfIOnotInitialized) then
     Status = WRF_IO_NOT_INITIALIZED 
@@ -1292,10 +1296,10 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
   endif
   !ADIOS2 compression
   CALL nl_get_adios2_compression_enable(1,   compression_enabled)
-  CALL nl_get_adios2_blosc_compressor(1,   compressor)
   if (compression_enabled) then
-    DH%blosc_compressor = compressor
     if (DH%compress_operator%name .ne. 'Compressor') then
+      CALL nl_get_adios2_blosc_compressor(1,   compressor)
+      DH%blosc_compressor = compressor
       call adios2_define_operator(DH%compress_operator, adios, 'Compressor', 'blosc', stat)
       call adios2_err(stat,Status)
       if(Status /= WRF_NO_ERR) then
@@ -1305,6 +1309,18 @@ SUBROUTINE ext_adios2_open_for_write_begin(FileName,Comm,IOComm,SysDepInfo,Iotyp
       endif
     endif
   endif
+  !ADIOS2 number of aggregators (AKA substreams, subfiles). Overrules setting in adios2.xml.
+  !numaggregators = 0 will set a single aggregator per node. The default value (<large number>) will set one aggregator per process.
+  CALL nl_get_adios2_numaggregators(1,   numaggregators)
+  write(s_numaggregators,*) numaggregators
+  call adios2_set_parameter(DH%adios2IO, 'NumAggregators', s_numaggregators, stat)
+  call adios2_err(stat,Status)
+  if(Status /= WRF_NO_ERR) then
+    write(msg,*) 'adios2 error in ext_adios2_open_for_write_begin ',__FILE__,', line', __LINE__
+    call wrf_debug ( WARN , TRIM(msg))
+    return
+  endif
+    
   DH%DimLengths(1) = DateStrLen
   return
 end subroutine ext_adios2_open_for_write_begin
