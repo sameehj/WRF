@@ -70,7 +70,8 @@ def r_attrs(adios2f):
             var, var_attrib = attr.split("/")
             var_attrs[var][var_attrib] = val
         else:
-            global_attrs[attr] = val
+            if not attr.startswith("_DIM_"):
+                global_attrs[attr] = val
     return (attrs, var_attrs, global_attrs)
 
 
