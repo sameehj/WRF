@@ -2509,8 +2509,11 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType,Comm, &
     endif
     DH%VarIDs(NVar) = VarID
     ! add attribute of dimension names (for reconstructing netcdf file)
-    DimNamesOut(1:NDim) = RODimNames(1:NDim)
+    do j = 1,NDim
+      DimNamesOut(j) = DH%DimNames(VDimIDs(j))
+    end do
     DimNamesOut(NDim+1) = DH%DimUnlimName
+    
     call adios2_define_attribute(AttributeID,DH%adios2IO, 'Dims', &
               DimNamesOut, NDim+1, VarID%name, '/', stat)
     call adios2_err(stat,Status)
