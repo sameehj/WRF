@@ -11,36 +11,35 @@
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Element
-  character (DateStrLen),intent(in)     :: DateStr
-  character*(*)         ,intent(in)     :: Var
+  integer               ,intent(in)         :: DataHandle
+  character*(*)         ,intent(in)         :: Element
+  character (DateStrLen),intent(in)         :: DateStr
+  character*(*)         ,intent(in)         :: Var
   TYPE_COUNT
   TYPE_DATA
   TYPE_OUTCOUNT
-  integer               ,intent(out)    :: Status
-  type(wrf_data_handle) ,pointer        :: DH
-  character (VarNameLen)                :: VarName
-  character (40+len(Element))           :: Name
-  character (40+len(Element))           :: FName
-  integer                               :: stat
-  TYPE_BUFFER           ,allocatable    :: Buffer(:)
-  integer                               :: i
-  integer                               :: VDims (2)
-  integer                               :: VStart(2)
-  integer                               :: VCount(2)
-  integer                               :: NVar
-  integer                               :: TimeIndex
-  integer                               :: NCID
-  integer                               :: DimIDs(2)
-  type(adios2_variable)                 :: VarID
-  integer                               :: XType
-  integer                               :: NDims
-  integer                               :: NAtts
-  integer                               :: Len1
-  integer(kind=8)                       :: TimeIndex_int8
-  integer(kind=8), dimension(:), allocatable :: shape_dims
-  integer                               :: ndims_adios2
+  integer               ,intent(out)        :: Status
+  type(wrf_data_handle) ,pointer            :: DH
+  character (VarNameLen)                    :: VarName
+  character (40+len(Element))               :: Name
+  character (40+len(Element))               :: FName
+  integer                                   :: stat
+  TYPE_BUFFER           ,allocatable        :: Buffer(:)
+  integer                                   :: i
+  integer                                   :: VDims (2)
+  integer                                   :: VStart(2)
+  integer                                   :: VCount(2)
+  integer                                   :: NVar
+  integer                                   :: TimeIndex
+  integer                                   :: DimIDs(2)
+  type(adios2_variable)                     :: VarID
+  integer                                   :: XType
+  integer                                   :: NDims
+  integer                                   :: NAtts
+  integer                                   :: Len1
+  integer(kind=8)                           :: TimeIndex_int8
+  integer(kind=8),dimension(:),allocatable  :: shape_dims
+  integer                                   :: ndims_adios2
 
   if(Count <= 0) then
     Status = WRF_WARN_ZERO_LENGTH_GET  
@@ -64,7 +63,6 @@
     call wrf_debug ( WARN , msg)
     return
   endif
-  NCID = DH%NCID
   call GetName(Element, VarName, Name, Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) &

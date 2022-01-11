@@ -6,29 +6,26 @@
 !*
 !*----------------------------------------------------------------------------
 
-subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+subroutine ext_adios2_RealFieldIO(IO,DataHandle,VarID,VStart,VCount,Data,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  character (*)               ,intent(in)          :: IO
-  integer                     ,intent(in)          :: DataHandle
-  integer                     ,intent(in)          :: NCID
-  type(adios2_variable)       ,intent(in)          :: VarID
-  integer(kind=8),dimension(NVarDims),intent(in)   :: VStart
-  integer(kind=8),dimension(NVarDims),intent(in)   :: VCount
-  real                        ,intent(inout)       :: Data
-  integer                     ,intent(out)         :: Status
-  integer                                          :: stat
-  type(wrf_data_handle) ,pointer                   :: DH
-  !local
-  integer(kind=8)           , dimension(NVarDims)  :: VStart_mpi, VCount_mpi
-  VStart_mpi = VStart
-  VCount_mpi = VCount
-  
+  character (*)                       ,intent(in)          :: IO
+  integer                             ,intent(in)          :: DataHandle
+  type(adios2_variable)               ,intent(in)          :: VarID
+  integer(kind=8),dimension(NVarDims) ,intent(in)          :: VStart
+  integer(kind=8),dimension(NVarDims) ,intent(in)          :: VCount
+  real                                ,intent(inout)       :: Data
+  integer                             ,intent(out)         :: Status
+  integer                                                  :: stat
+  type(wrf_data_handle),pointer                            :: DH
+  integer(kind=8),dimension(NVarDims)                      :: VStart_mpi, VCount_mpi
+
   !start arrays should start at 0 for ADIOS2
-  VStart_mpi = VStart_mpi - 1
+  VStart_mpi = VStart - 1
+  VCount_mpi = VCount
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_RealFieldIO ',__FILE__,', line', __LINE__
@@ -56,29 +53,26 @@ subroutine ext_adios2_RealFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,St
   endif
 end subroutine ext_adios2_RealFieldIO
 
-subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,VarID,VStart,VCount,Data,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  character (*)               ,intent(in)           :: IO
-  integer                     ,intent(in)           :: DataHandle
-  integer                     ,intent(in)           :: NCID
-  type(adios2_variable)       ,intent(in)           :: VarID
-  integer(kind=8) ,dimension(NVarDims),intent(in)   :: VStart
-  integer(kind=8) ,dimension(NVarDims),intent(in)   :: VCount
-  real*8                      ,intent(inout)        :: Data
-  integer                     ,intent(out)          :: Status
-  integer                                           :: stat
-  type(wrf_data_handle) ,pointer                    :: DH
-  !local
-  integer(kind=8)           , dimension(NVarDims)   :: VStart_mpi, VCount_mpi
-  VStart_mpi = VStart
-  VCount_mpi = VCount
+  character (*)                        ,intent(in)           :: IO
+  integer                              ,intent(in)           :: DataHandle
+  type(adios2_variable)                ,intent(in)           :: VarID
+  integer(kind=8) ,dimension(NVarDims) ,intent(in)           :: VStart
+  integer(kind=8) ,dimension(NVarDims) ,intent(in)           :: VCount
+  real*8                               ,intent(inout)        :: Data
+  integer                              ,intent(out)          :: Status
+  integer                                                    :: stat
+  type(wrf_data_handle),pointer                              :: DH
+  integer(kind=8),dimension(NVarDims)                        :: VStart_mpi, VCount_mpi
 
   !start arrays should start at 0 for ADIOS2
-  VStart_mpi = VStart_mpi - 1
+  VStart_mpi = VStart - 1
+  VCount_mpi = VCount
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_DoubleFieldIO ',__FILE__,', line', __LINE__
@@ -106,29 +100,26 @@ subroutine ext_adios2_DoubleFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,
   endif
   end subroutine ext_adios2_DoubleFieldIO
 
-subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+subroutine ext_adios2_IntFieldIO(IO,DataHandle,VarID,VStart,VCount,Data,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  character (*)               ,intent(in)         :: IO
-  integer                     ,intent(in)         :: DataHandle
-  integer                     ,intent(in)         :: NCID
-  type(adios2_variable)       ,intent(in)         :: VarID
-  integer(kind=8) ,dimension(NVarDims),intent(in) :: VStart
-  integer(kind=8) ,dimension(NVarDims),intent(in) :: VCount
-  integer                     ,intent(inout)      :: Data
-  integer                     ,intent(out)        :: Status
-  integer                                         :: stat
-  type(wrf_data_handle) ,pointer                  :: DH
-  !local
-  integer(kind=8)           , dimension(NVarDims) :: VStart_mpi, VCount_mpi
-  VStart_mpi = VStart
-  VCount_mpi = VCount
+  character (*)                        ,intent(in)          :: IO
+  integer                              ,intent(in)          :: DataHandle
+  type(adios2_variable)                ,intent(in)          :: VarID
+  integer(kind=8) ,dimension(NVarDims) ,intent(in)          :: VStart
+  integer(kind=8) ,dimension(NVarDims) ,intent(in)          :: VCount
+  integer                              ,intent(inout)       :: Data
+  integer                              ,intent(out)         :: Status
+  integer                                                   :: stat
+  type(wrf_data_handle),pointer                             :: DH
+  integer(kind=8),dimension(NVarDims)                       :: VStart_mpi, VCount_mpi
 
   !start arrays should start at 0 for ADIOS2
-  VStart_mpi = VStart_mpi - 1
+  VStart_mpi = VStart - 1
+  VCount_mpi = VCount
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
@@ -148,7 +139,6 @@ subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Sta
   else
     call adios2_get(DH%adios2Engine, VarID, Data, adios2_mode_sync, stat)
   endif
-
   call adios2_err(stat,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'adios2 error in ext_adios2_IntFieldIO ',__FILE__,', line', __LINE__
@@ -157,31 +147,28 @@ subroutine ext_adios2_IntFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Sta
   endif
 end subroutine ext_adios2_IntFieldIO
 
-subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,NCID,VarID,VStart,VCount,Data,Status)
+subroutine ext_adios2_LogicalFieldIO(IO,DataHandle,VarID,VStart,VCount,Data,Status)
   use wrf_data_adios2
   use ext_adios2_support_routines
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  character (*)                                   ,intent(in)         :: IO
-  integer                                         ,intent(in)         :: DataHandle
-  integer                                         ,intent(in)         :: NCID
-  type(adios2_variable)                           ,intent(in)         :: VarID
-  integer(kind=8) ,dimension(NVarDims)                    ,intent(in) :: VStart
-  integer(kind=8) ,dimension(NVarDims)                    ,intent(in) :: VCount
-  logical,dimension(VCount(1),VCount(2),VCount(3)),intent(inout)      :: Data
-  integer                                         ,intent(out)        :: Status
-  integer                                                             :: stat
-  type(wrf_data_handle) ,pointer                                      :: DH
-  integer,dimension(:,:,:),allocatable                                :: Buffer
-  integer                                                             :: i,j,k
-  !local
-  integer(kind=8)                               , dimension(NVarDims) :: VStart_mpi, VCount_mpi
-  VStart_mpi = VStart
-  VCount_mpi = VCount
+  character (*)                                    ,intent(in)         :: IO
+  integer                                          ,intent(in)         :: DataHandle
+  type(adios2_variable)                            ,intent(in)         :: VarID
+  integer(kind=8) ,dimension(NVarDims)             ,intent(in)         :: VStart
+  integer(kind=8) ,dimension(NVarDims)             ,intent(in)         :: VCount
+  logical,dimension(VCount(1),VCount(2),VCount(3)) ,intent(inout)      :: Data
+  integer                                          ,intent(out)        :: Status
+  integer                                                              :: stat
+  type(wrf_data_handle),pointer                                        :: DH
+  integer,dimension(:,:,:),allocatable                                 :: Buffer
+  integer                                                              :: i,j,k
+  integer(kind=8),dimension(NVarDims)                                  :: VStart_mpi, VCount_mpi
 
   !start arrays should start at 0 for ADIOS2
-  VStart_mpi = VStart_mpi - 1
+  VStart_mpi = VStart - 1
+  VCount_mpi = VCount
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) 'Warning Status = ',Status,' in ext_adios2_LogicalFieldIO ',__FILE__,', line', __LINE__

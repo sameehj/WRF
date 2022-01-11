@@ -317,7 +317,7 @@ SUBROUTINE wrf_open_for_write_begin( FileName , grid, SysDepInfo, &
           ENDIF
         ENDDO
         tstr = t1
-        CALL ext_adios2_open_for_write_begin( FileName, Comm_compute, Comm_io, tstr, &
+        CALL ext_adios2_open_for_write_begin( FileName, tstr,         &
                                             Dataset, Hndl, Status)
 #endif
 #ifdef PIO
@@ -615,7 +615,7 @@ SUBROUTINE wrf_open_for_read_begin( FileName , grid, SysDepInfo, &
 #endif
 #ifdef ADIOS2
       CASE ( IO_ADIOS2   )
-        CALL ext_adios2_open_for_read_begin ( FileName , Comm_compute, Comm_io, SysDepInfo, &
+        CALL ext_adios2_open_for_read_begin ( FileName , SysDepInfo, &
                                             Hndl , Status )
 #endif
 #ifdef PIO
@@ -845,7 +845,7 @@ SUBROUTINE wrf_open_for_read ( FileName , grid, SysDepInfo, &
 #endif
 #ifdef ADIOS2
     CASE ( IO_ADIOS2  )
-      CALL ext_adios2_open_for_read ( FileName , Comm_compute, Comm_io, SysDepInfo, &
+      CALL ext_adios2_open_for_read ( FileName , SysDepInfo, &
                                Hndl , Status )
 #endif
 #ifdef PIO
@@ -2292,7 +2292,7 @@ SUBROUTINE wrf_read_field1 ( DataHandle , DateStr , VarName , Field , FieldType 
 #ifdef ADIOS2
         CASE ( IO_ADIOS2)
           CALL ext_adios2_read_field   (                   &
-                                     Hndl , DateStr , VarName , Field , FieldType , Comm , IOComm , &
+                                     Hndl , DateStr , VarName , Field , FieldType , &
                                      DomainDesc , MemoryOrder , Stagger , DimNames ,              &
                                      DomainStart , DomainEnd ,                                    &
                                      MemoryStart , MemoryEnd ,                                    &
@@ -2593,7 +2593,7 @@ SUBROUTINE wrf_write_field1 ( DataHandle , DateStr , VarName , Field , FieldType
           ENDIF
 
                CALL ext_adios2_write_field(                  &
-                                       Hndl , DateStr , VarName , Field , FieldType , Comm , IOComm , &
+                                       Hndl , DateStr , VarName , Field , FieldType , &
                                        DomainDesc , MemoryOrder , Stagger , DimNames ,              &
                                        DomainStart , DomainEnd ,                                    &
                                        MemoryStart , MemoryEnd ,                                    &

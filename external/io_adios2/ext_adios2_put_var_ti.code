@@ -18,7 +18,7 @@
   TYPE_DATA
   integer               ,intent(out)    :: Status
   type(wrf_data_handle) ,pointer        :: DH
-  character (31)                :: VarName
+  character(31)                         :: VarName
   integer                               :: stat
   integer               ,allocatable    :: Buffer(:)
   integer                               :: i

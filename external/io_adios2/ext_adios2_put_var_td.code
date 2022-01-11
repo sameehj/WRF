@@ -30,7 +30,6 @@
   integer(kind=8)                       :: VCount(1)
   integer                               :: NVar
   integer                               :: TimeIndex
-  integer                               :: NCID
   integer(kind=8)      ,dimension(1)    :: zero
   integer(kind=8)                       :: shape_dims(1)
   character(80),dimension(2)            :: DimNamesOut
@@ -51,7 +50,6 @@
     call wrf_debug ( WARN , msg)
     return
   endif
-  NCID = DH%NCID
   call GetName(Element, VarName, Name, Status)
   if(Status /= WRF_NO_ERR) then
     write(msg,*) &
