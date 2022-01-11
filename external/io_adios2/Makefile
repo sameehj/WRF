@@ -9,10 +9,8 @@ CODE    = ext_adios2_get_dom_ti.code \
 	  ext_adios2_put_var_td.code \
 	  ext_adios2_put_var_ti.code \
 	  transpose.code 
-#ADIOS2_INC = -DADIOS2_USE_MPI -I/mnt/central/spack/opt/spack/linux-centos8-cascadelake/gcc-10.2.0/adios2-2.7.1-6giaxcfgoy2q5u2gkjnvrxiq5aamkijy/include/adios2/fortran
-ADIOS2INC = 
-FFLAGS  = $(FCFLAGS) $(ADIOS2INC) -I../ioapi_share
-#LIBS    = $(ADIOS2_LIBS)
+
+FFLAGS  = $(FCFLAGS) -I$(ADIOS2)/include/adios2/fortran -I../ioapi_share
 CPP1    = $(CPP) -P $(TRADFLAG)
 M4      = m4 -Uinclude -Uindex -Ulen
 AR      = ar
@@ -27,11 +25,11 @@ libwrfio_adios2.a:		$(OBJS) $(CODE)
 			$(RANLIB) libwrfio_adios2.a
 
 wrf_io.o:               wrf_io.F90 $(CODE)
-			$(CPP1) $(ADIOS2INC)  -I../ioapi_share wrf_io.F90 | $(M4) - > wrf_io.f
+			$(CPP1) -I$(ADIOS2)/include/adios2/fortran  -I../ioapi_share wrf_io.F90 | $(M4) - > wrf_io.f
 			$(FC) $(FFLAGS)  -c wrf_io.f
 
 field_routines.o:	field_routines.F90 wrf_io.o
-			$(CPP1)  $(ADIOS2INC) -I../ioapi_share field_routines.F90 > field_routines.f
+			$(CPP1)  -I$(ADIOS2)/include/adios2/fortran -I../ioapi_share field_routines.F90 > field_routines.f
 			$(FC) $(FFLAGS) -c field_routines.f
 
 superclean:

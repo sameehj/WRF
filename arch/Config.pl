@@ -9,6 +9,7 @@ select((select(STDOUT), $|=1)[0]);
 $sw_perl_path = perl ;
 $sw_netcdf_path = "" ;
 $sw_pnetcdf_path = "" ;
+$sw_adios2_path = "" ;
 $sw_hdf5_path=""; 
 $sw_phdf5_path=""; 
 $sw_jasperlib_path=""; 
@@ -94,6 +95,10 @@ while ( substr( $ARGV[0], 0, 1 ) eq "-" )
   if ( substr( $ARGV[0], 1, 8 ) eq "pnetcdf=" )
   {
     $sw_pnetcdf_path = substr( $ARGV[0], 9 ) ;
+  }
+  if ( substr( $ARGV[0], 1, 7 ) eq "adios2=" )
+  {
+    $sw_adios2_path = substr( $ARGV[0], 8 ) ;
   }
   if ( substr( $ARGV[0], 1, 5 ) eq "hdf5=" )
   {
@@ -459,8 +464,7 @@ while ( <CONFIGURE_DEFAULTS> )
     $_ =~ s/CONFIGURE_PERL_PATH/$sw_perl_path/g ;
     $_ =~ s/CONFIGURE_NETCDF_PATH/$sw_netcdf_path/g ;
     $_ =~ s/CONFIGURE_PNETCDF_PATH/$sw_pnetcdf_path/g ;
-    #$_ =~ s/CONFIGURE_ADIOS2_LIB_PATH/$ENV{ADIOS2LIB}/g ;
-    #$_ =~ s/CONFIGURE_ADIOS2_INC/$ENV{ADIOS2INC}/g ;
+    $_ =~ s/CONFIGURE_ADIOS2_PATH/$sw_adios2_path/g ;
     $_ =~ s/CONFIGURE_HDF5_PATH/$sw_hdf5_path/g ;
     $_ =~ s/CONFIGURE_PHDF5_PATH/$sw_phdf5_path/g ;
     $_ =~ s/CONFIGURE_LDFLAGS/$sw_ldflags/g ;
@@ -529,19 +533,16 @@ while ( <CONFIGURE_DEFAULTS> )
 	$_ =~ s:CONFIGURE_PNETCDF_FLAG::g ;
 	$_ =~ s:CONFIGURE_PNETCDF_LIB_PATH::g ;
 	 }
-
-    if ($ENV{ADIOS2INC} && $ENV{ADIOS2LIB}) 
+    if ( $sw_adios2_path ) 
       { $_ =~ s/CONFIGURE_WRFIO_ADIOS2/wrfio_adios2/g ; 
-	      $_ =~ s:CONFIGURE_ADIOS2_FLAG:-DADIOS2: ;
-        $_ =~ s:CONFIGURE_ADIOS2_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_adios2 -lwrfio_adios2 $ENV{ADIOS2LIB}:;
-        $_ =~ s:CONFIGURE_ADIOS2_INC:$ENV{ADIOS2INC}:;
+	$_ =~ s:CONFIGURE_ADIOS2_FLAG:-DADIOS2: ;
+        $_ =~ s:CONFIGURE_ADIOS2_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_adios2 -lwrfio_adios2 -L$sw_adios2_path/lib64 -ladios2_fortran_mpi -ladios2_fortran:;
       }
     else                   
       { $_ =~ s/CONFIGURE_WRFIO_ADIOS2//g ;
-	      $_ =~ s:CONFIGURE_ADIOS2_FLAG::g ;
-	      $_ =~ s:CONFIGURE_ADIOS2_LIB_PATH::g ;
-        $_ =~ s:CONFIGURE_ADIOS2_INC::g ;
-	    }
+	$_ =~ s:CONFIGURE_ADIOS2_FLAG::g ;
+	$_ =~ s:CONFIGURE_ADIOS2_LIB_PATH::g ;
+       }
 
     if ( $sw_hdf5_path ) 
       { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lm -lz: ;
@@ -883,21 +884,17 @@ while ( <ARCH_PREAMBLE> )
 	$_ =~ s:CONFIGURE_PNETCDF_FLAG::g ;
 	$_ =~ s:CONFIGURE_PNETCDF_LIB_PATH::g ;
 	 }
-
-    if ($ENV{ADIOS2INC} && $ENV{ADIOS2LIB}) 
-      { $_ =~ s/CONFIGURE_WRFIO_ADIOS2/wrfio_adios2/g ;
-	      $_ =~ s:CONFIGURE_ADIOS2_FLAG:-DADIOS2: ;
-        $_ =~ s:CONFIGURE_ADIOS2_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_adios2 -lwrfio_adios2 $ENV{ADIOS2LIB}: ;
-        $_ =~ s:CONFIGURE_ADIOS2_INC:$ENV{ADIOS2INC}:;
+    if ( $sw_adios2_path ) 
+      { $_ =~ s/CONFIGURE_WRFIO_ADIOS2/wrfio_adios2/g ; 
+	$_ =~ s:CONFIGURE_ADIOS2_FLAG:-DADIOS2: ;
+        $_ =~ s:CONFIGURE_ADIOS2_LIB_PATH:-L\$\(WRF_SRC_ROOT_DIR\)/external/io_adios2 -lwrfio_adios2 -L$sw_adios2_path/lib64 -ladios2_fortran_mpi -ladios2_fortran:;
       }
-    else
+    else                   
       { $_ =~ s/CONFIGURE_WRFIO_ADIOS2//g ;
-	      $_ =~ s:CONFIGURE_ADIOS2_FLAG::g ;
-	      $_ =~ s:CONFIGURE_ADIOS2_LIB_PATH::g ;
-        $_ =~ s:CONFIGURE_ADIOS2_INC::g ;
-        
-	    }
-
+	$_ =~ s:CONFIGURE_ADIOS2_FLAG::g ;
+	$_ =~ s:CONFIGURE_ADIOS2_LIB_PATH::g ;
+      }
+    
     if ( $sw_hdf5_path )
       { $_ =~ s:CONFIGURE_HDF5_LIB_PATH:-L$sw_hdf5_path/lib -lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5 -lm -lz: ;
         $_ =~ s:CONFIGURE_HDF5_FLAG:-DHDF5: ;
