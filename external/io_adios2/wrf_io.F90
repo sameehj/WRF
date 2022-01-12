@@ -17,7 +17,7 @@ module wrf_data_adios2
    integer                , parameter      :: DateStrLen       = 19
    integer                , parameter      :: VarNameLen       = 31
    integer                , parameter      :: NO_DIM           = 0
-   integer                , parameter      :: NVarDims         = 3 !down from 4, as time is not used in adios
+   integer                , parameter      :: NVarDims         = 3 !down from 4, as time is dealt with as "steps" in ADIOS2
    integer                , parameter      :: NMDVarDims       = 2
    character (8)          , parameter      :: NO_NAME          = 'NULL'
    character (DateStrLen) , parameter      :: ZeroDate = '0000-00-00-00:00:00'
@@ -174,7 +174,7 @@ module ext_adios2_support_routines
  subroutine deallocHandle(DataHandle, Status)
    use wrf_data_adios2
    include 'wrf_status_codes.h'
-   integer              ,intent(in) :: DataHandle
+   integer              ,intent(in)  :: DataHandle
    integer              ,intent(out) :: Status
    type(wrf_data_handle),pointer     :: DH
    integer                           :: i
@@ -303,7 +303,7 @@ module ext_adios2_support_routines
    character (VarNameLen)        :: VarName
    character (1)                 :: c
    integer                       :: i
-   integer, parameter            ::  upper_to_lower =IACHAR('a')-IACHAR('A')
+   integer, parameter            :: upper_to_lower =IACHAR('a')-IACHAR('A')
  
    VarName = Var
    Name = 'MD___'//trim(Element)//VarName
@@ -406,7 +406,6 @@ module ext_adios2_support_routines
    return
  end subroutine GetDim
  
- !ML provides i,j,k indices. provides default "1" for undfined dims for the variable
  subroutine GetIndices(NDim,Start,End,i1,i2,j1,j2,k1,k2)
    integer              ,intent(in)  :: NDim
    integer ,dimension(*),intent(in)  :: Start,End
@@ -1302,8 +1301,8 @@ subroutine ext_adios2_open_for_write (DatasetName, SysDepInfo, DataHandle, Statu
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  character *(*), intent(in)  ::DatasetName
-  character *(*), intent(in)  ::SysDepInfo
+  character *(*), intent(in)  :: DatasetName
+  character *(*), intent(in)  :: SysDepInfo
   integer       , intent(out) :: DataHandle
   integer       , intent(out) :: Status
   
@@ -1595,7 +1594,6 @@ subroutine ext_adios2_ioinit(SysDepInfo, Status)
   WrfDataHandles(1:WrfDataHandleMax)%DimUnlimName = 'Time'
   WrfDataHandles(1:WrfDataHandleMax)%FileStatus   = WRF_FILE_NOT_OPENED
   Status = WRF_NO_ERR
-
   !look for adios2 xml runtime configuration
   INQUIRE(FILE="adios2.xml", EXIST=file_exists)  
   if(file_exists) then
@@ -1840,7 +1838,7 @@ subroutine ext_adios2_put_var_td_double(DataHandle,Element,DateStr,Var,Data,Coun
 #undef LENGTH
 #undef LOG
 #define ROUTINE_TYPE 'DOUBLE'
-#define TYPE_DATA  real*8,intent(in) :: Data(Count)
+#define TYPE_DATA  real*8,intent(in)   :: Data(Count)
 #define TYPE_COUNT integer ,intent(in) :: Count
 #define ADIOS2TYPE adios2_type_dp 
 #define LENGTH Count
@@ -2436,8 +2434,6 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType, &
         call wrf_debug ( WARN , TRIM(msg))
         return
     end select
-    !ML shape_dims (global dimension dims) can be taken from dimensions lLength_global, start dims
-    ! and count dims can be left at 0 for now (see e3mf example) 
     zero(:) = 0
     shape_dims(:) = Length_global(:)
     if(NDim == 0) then
@@ -2476,7 +2472,7 @@ subroutine ext_adios2_write_field(DataHandle,DateStr,Var,Field,FieldType, &
       endif
     endif
     DH%VarIDs(NVar) = VarID
-    ! add attribute of dimension names (for reconstructing netcdf file)
+    ! add attribute of dimension names (for reconstructing netcdf file with converter)
     do j = 1,NDim
       DimNamesOut(j) = DH%DimNames(VDimIDs(j))
     end do
@@ -2930,7 +2926,7 @@ subroutine ext_adios2_get_next_time(DataHandle, DateStr, Status)
       Status = WRF_WARN_TIME_EOF
       return
     endif
-    DH%CurrentTime     = DH%CurrentTime +1
+    DH%CurrentTime     = DH%CurrentTime + 1
     DateStr            = DH%Times(DH%CurrentTime)
     DH%CurrentVariable = 0
     Status = WRF_NO_ERR
@@ -3052,23 +3048,23 @@ subroutine ext_adios2_get_var_info(DataHandle,Name,NDim,MemoryOrder,Stagger,Doma
   use adios2
   implicit none
   include 'wrf_status_codes.h'
-  integer               ,intent(in)     :: DataHandle
-  character*(*)         ,intent(in)     :: Name
-  integer               ,intent(out)    :: NDim
-  character*(*)         ,intent(out)    :: MemoryOrder
-  character*(*)                         :: Stagger ! Dummy for now
-  integer ,dimension(*) ,intent(out)    :: DomainStart, DomainEnd
-  integer               ,intent(out)    :: WrfType
-  integer               ,intent(out)    :: Status
-  type(wrf_data_handle) ,pointer        :: DH
-  type(adios2_variable)                 :: VarID
-  integer ,dimension(NVarDims)          :: VDimIDs
-  integer                               :: j
-  integer                               :: stat
-  integer                               :: XType
-  type(adios2_attribute)                :: attribute
+  integer               ,intent(in)          :: DataHandle
+  character*(*)         ,intent(in)          :: Name
+  integer               ,intent(out)         :: NDim
+  character*(*)         ,intent(out)         :: MemoryOrder
+  character*(*)                              :: Stagger ! Dummy for now
+  integer ,dimension(*) ,intent(out)         :: DomainStart, DomainEnd
+  integer               ,intent(out)         :: WrfType
+  integer               ,intent(out)         :: Status
+  type(wrf_data_handle) ,pointer             :: DH
+  type(adios2_variable)                      :: VarID
+  integer ,dimension(NVarDims)               :: VDimIDs
+  integer                                    :: j
+  integer                                    :: stat
+  integer                                    :: XType
+  type(adios2_attribute)                     :: attribute
   integer(kind=8), dimension(:), allocatable :: shape_dims
-  integer                               :: ndims_adios2
+  integer                                    :: ndims_adios2
 
   call GetDH(DataHandle,DH,Status)
   if(Status /= WRF_NO_ERR) then
