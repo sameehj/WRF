@@ -4,7 +4,7 @@ spack install -y netcdf-c ^hdf5 +fortran
 spack install -y netcdf-fortran ^hdf5 +fortran
 spack install -y jasper
 spack install -y libpng
-spack install -y adios2@master +python
+#spack install -y adios2@master +python
 spack install -y py-matplotlib
 
 
@@ -22,8 +22,8 @@ spack load netcdf-c
 spack load netcdf-fortran
 spack load jasper
 spack load libpng
-spack load adios2 +python
-
+#spack load adios2 +python
+spack load adios2
 
 # environment varirables
 export NETCDF=$(spack location -i netcdf-fortran)
