@@ -1,0 +1,6 @@
+packages:
+  ucx:
+    externals:
+    - spec: adios2@ucx.v1
+      prefix: ADIOS2_BIN_PATH
+    buildable: false
